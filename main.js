@@ -63,7 +63,11 @@ async function checkForUpdates(win) {
 }
 // ─────────────────────────────────────────────────────────────────────────
 
+const UPDATE_INTERVAL_MS = 5 * 60 * 1000
+let nextCheckTime = Date.now()
+
 ipcMain.handle('get-app-version', () => app.getVersion())
+ipcMain.handle('get-next-check-time', () => nextCheckTime)
 
 function createWindow () {
   // Create the browser window.
@@ -89,6 +93,12 @@ app.whenReady().then(() => {
   createWindow()
   const [win] = BrowserWindow.getAllWindows()
   checkForUpdates(win)
+
+  setInterval(() => {
+    nextCheckTime = Date.now() + UPDATE_INTERVAL_MS
+    checkForUpdates(win)
+  }, UPDATE_INTERVAL_MS)
+  nextCheckTime = Date.now() + UPDATE_INTERVAL_MS
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

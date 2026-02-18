@@ -19,4 +19,12 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   ipcRenderer.invoke('get-app-version').then(v => replaceText('app-version', v))
+
+  setInterval(async () => {
+    const next = await ipcRenderer.invoke('get-next-check-time')
+    const secs = Math.max(0, Math.round((next - Date.now()) / 1000))
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    replaceText('update-countdown', `${m}:${s.toString().padStart(2, '0')}`)
+  }, 1000)
 })
