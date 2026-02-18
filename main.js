@@ -33,10 +33,10 @@ function semverGt(a, b) {
   return false
 }
 
-async function checkForUpdates(win) {
+async function checkForUpdates() {
   try {
     const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json`))
-    const local = require('./package.json').version
+    const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version
     if (!semverGt(remote.version, local)) return
 
     console.log(`Update available: ${local} → ${remote.version}`)
@@ -45,7 +45,8 @@ async function checkForUpdates(win) {
       fs.writeFileSync(path.join(__dirname, file), content, 'utf8')
     }
 
-    const { response } = await dialog.showMessageBox(win, {
+    const win = BrowserWindow.getAllWindows()[0]
+    const { response } = await dialog.showMessageBox(win ?? null, {
       type: 'info',
       title: 'Update Ready',
       message: `Monkey Farm ${remote.version} downloaded`,
@@ -91,12 +92,11 @@ function createWindow () {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   createWindow()
-  const [win] = BrowserWindow.getAllWindows()
-  checkForUpdates(win)
+  checkForUpdates()
 
   setInterval(() => {
     nextCheckTime = Date.now() + UPDATE_INTERVAL_MS
-    checkForUpdates(win)
+    checkForUpdates()
   }, UPDATE_INTERVAL_MS)
   nextCheckTime = Date.now() + UPDATE_INTERVAL_MS
 
