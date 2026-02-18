@@ -6,7 +6,7 @@ const fs = require('node:fs')
 
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
-const UPDATE_FILES = ['renderer.js', 'index.html', 'preload.js', 'package.josn']
+const UPDATE_FILES = ['renderer.js', 'index.html', 'preload.js', 'package.json']
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
