@@ -6,6 +6,8 @@
  *
  * https://www.electronjs.org/docs/latest/tutorial/sandbox
  */
+const { ipcRenderer } = require('electron')
+
 window.addEventListener('DOMContentLoaded', () => {
   const replaceText = (selector, text) => {
     const element = document.getElementById(selector)
@@ -16,5 +18,5 @@ window.addEventListener('DOMContentLoaded', () => {
     replaceText(`${type}-version`, process.versions[type])
   }
 
-  replaceText('app-version', require('./package.json').version)
+  ipcRenderer.invoke('get-app-version').then(v => replaceText('app-version', v))
 })

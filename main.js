@@ -1,5 +1,5 @@
 // Modules to control application life and create native browser window
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const path = require('node:path')
 const https = require('node:https')
 const fs = require('node:fs')
@@ -62,6 +62,8 @@ async function checkForUpdates(win) {
   }
 }
 // ─────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('get-app-version', () => app.getVersion())
 
 function createWindow () {
   // Create the browser window.
