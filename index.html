@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>Sea Monkey Farm</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        width: 100vw; height: 100vh; overflow: hidden;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 12px;
+        background: #0a1628;
+        color: #cce4ff;
+        display: grid;
+        grid-template-areas: "header header" "sidebar tank" "sidebar statusbar";
+        grid-template-columns: 280px 1fr;
+        grid-template-rows: 50px 1fr 30px;
+      }
+
+      /* ── HEADER ── */
+      #header {
+        grid-area: header;
+        background: linear-gradient(90deg, #0d2137, #0a3a5c);
+        border-bottom: 2px solid #1a5f8a;
+        display: flex; align-items: center;
+        padding: 0 16px; gap: 20px;
+      }
+      #header h1 { font-size: 18px; color: #7fd8ff; letter-spacing: 1px; white-space: nowrap; }
+      .header-census { display: flex; gap: 20px; margin: 0 auto; font-size: 11px; }
+      .header-stats { display: flex; gap: 16px; font-size: 11px; }
+      #btn-settings {
+        background: none; border: 1px solid #1a3a5c; border-radius: 6px;
+        color: #5599bb; font-size: 18px; width: 36px; height: 36px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s, color 0.15s; flex-shrink: 0;
+      }
+      #btn-settings:hover { background: #0d2137; color: #7fd8ff; }
+
+      /* Settings popup */
+      #settings-overlay {
+        position: fixed; inset: 0; z-index: 100;
+        display: none;
+      }
+      #settings-overlay.open { display: block; }
+      #settings-popup {
+        position: fixed; top: 56px; right: 12px;
+        background: #0d2137; border: 1px solid #1a5f8a;
+        border-radius: 8px; padding: 14px; width: 260px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        display: flex; flex-direction: column; gap: 10px;
+      }
+      .settings-title {
+        font-size: 12px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px;
+      }
+      .settings-section { display: flex; flex-direction: column; gap: 6px; }
+      .settings-section + .settings-section { border-top: 1px solid #1a3a5c; padding-top: 8px; }
+      .settings-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        font-size: 11px; color: #88bbcc;
+      }
+      .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+      .toggle-switch input { opacity: 0; width: 0; height: 0; }
+      .toggle-slider {
+        position: absolute; cursor: pointer; inset: 0;
+        background: #1a3a5c; border-radius: 20px; transition: background 0.2s;
+      }
+      .toggle-slider:before {
+        position: absolute; content: '';
+        width: 14px; height: 14px; left: 3px; bottom: 3px;
+        background: #5599bb; border-radius: 50%; transition: transform 0.2s, background 0.2s;
+      }
+      .toggle-switch input:checked + .toggle-slider { background: #0a5a8c; }
+      .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); background: #7fd8ff; }
+
+      .hstat { display: flex; flex-direction: column; align-items: center; }
+      .hstat-label { color: #5599bb; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+      .hstat-value { color: #7fd8ff; font-weight: bold; font-size: 14px; }
+
+      /* ── SIDEBAR ── */
+      #sidebar {
+        grid-area: sidebar;
+        background: #071424;
+        border-right: 2px solid #1a3a5c;
+        overflow-y: auto; overflow-x: hidden;
+        padding: 8px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      #sidebar::-webkit-scrollbar { width: 4px; }
+      #sidebar::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 2px; }
+
+      .panel {
+        background: #0d2137;
+        border: 1px solid #1a3a5c;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .panel-title {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+        color: #5599bb; margin-bottom: 6px; border-bottom: 1px solid #1a3a5c;
+        padding-bottom: 4px;
+      }
+      /* Tank Level panel */
+      #tank-level-panel { display: flex; align-items: center; gap: 10px; }
+      #tank-level-badge {
+        font-size: 22px; font-weight: bold; color: #ffd700;
+        text-shadow: 0 0 8px rgba(255,215,0,0.5);
+        min-width: 32px; text-align: center; flex-shrink: 0;
+      }
+      #tank-level-badge span { font-size: 10px; display: block; color: #88bbcc; font-weight: normal; }
+      #tank-xp-wrap { flex: 1; }
+      #tank-xp-track {
+        height: 8px; background: #0a1628; border-radius: 4px;
+        border: 1px solid #1a3a5c; overflow: hidden; margin-top: 4px;
+      }
+      #tank-xp-bar {
+        height: 100%; border-radius: 4px;
+        background: linear-gradient(90deg, #b8860b, #ffd700);
+        transition: width 0.5s ease;
+      }
+      #tank-xp-label { font-size: 9px; color: #5599bb; margin-top: 2px; }
+
+      /* Gauges */
+      .gauge { margin-bottom: 6px; }
+      .gauge-label { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 10px; }
+      .gauge-track {
+        height: 8px; background: #0a1628; border-radius: 4px;
+        border: 1px solid #1a3a5c; overflow: hidden;
+      }
+      .gauge-fill {
+        height: 100%; border-radius: 4px; transition: width 0.5s ease;
+      }
+      .gauge-fill.food   { background: linear-gradient(90deg, #c8a000, #ffdd00); }
+      .gauge-fill.oxygen { background: linear-gradient(90deg, #0055cc, #44aaff); }
+      .gauge-fill.clean  { background: linear-gradient(90deg, #007733, #44cc77); }
+      .gauge-fill.danger { animation: gauge-pulse 0.8s ease-in-out infinite; }
+
+      /* Buttons */
+      .btn {
+        width: 100%; padding: 6px 8px; margin-bottom: 4px;
+        background: #0d3a5c; border: 1px solid #1a6a9a; border-radius: 5px;
+        color: #cce4ff; cursor: pointer; font-size: 11px;
+        transition: background 0.15s, opacity 0.15s;
+        text-align: center;
+      }
+      .btn:hover:not(:disabled) { background: #155070; }
+      .btn:active:not(:disabled) { background: #1a6a9a; }
+      .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+      .btn.primary { background: #0a5a8c; border-color: #2a9ad4; color: #ffffff; }
+      .btn.primary:hover:not(:disabled) { background: #0d70a8; }
+      .btn.warning { background: #5c2a00; border-color: #aa5500; color: #ffcc88; }
+      .btn.debug-active { background: #3a005c; border-color: #aa44ff; color: #dd99ff; }
+
+      .inv-item {
+        display: flex; align-items: center; gap: 6px;
+        padding: 5px 0; border-bottom: 1px solid #0d2137;
+      }
+      .inv-item:last-child { border-bottom: none; }
+      .inv-icon { font-size: 18px; flex-shrink: 0; }
+      .inv-info { flex: 1; display: flex; flex-direction: column; }
+      .inv-name { font-size: 10px; color: #cce4ff; }
+      .inv-desc { font-size: 9px; color: #3a6a8a; }
+      .inv-count { font-size: 13px; font-weight: bold; color: #7fd8ff; min-width: 16px; text-align: center; }
+      .inv-use-btn { width: auto; padding: 3px 8px; font-size: 10px; margin: 0; }
+
+      .debug-timer {
+        display: flex; align-items: baseline; gap: 6px;
+        padding: 3px 0; border-bottom: 1px solid #0d2137; font-size: 10px;
+      }
+      .debug-timer:last-child { border-bottom: none; }
+      .debug-time {
+        font-variant-numeric: tabular-nums; color: #aa44ff;
+        font-weight: bold; white-space: nowrap; min-width: 34px;
+      }
+      .debug-next { color: #88bbcc; line-height: 1.3; }
+
+      /* Census */
+      .census-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+      .census-item { font-size: 10px; display: flex; justify-content: space-between; }
+      .census-val { color: #7fd8ff; font-weight: bold; }
+
+      /* Event log */
+      #event-log { font-size: 10px; }
+      #event-log::-webkit-scrollbar { width: 3px; }
+      #event-log::-webkit-scrollbar-thumb { background: #1a5f8a; }
+      .log-entry {
+        padding: 2px 0; border-bottom: 1px solid #0d2137;
+        line-height: 1.4; color: #88bbcc;
+      }
+      .log-entry.new { animation: log-flash 1s ease-out; }
+      .log-entry .log-time { color: #3a6a8a; font-size: 9px; }
+
+      /* Purify countdown */
+      #purify-countdown {
+        text-align: center; font-size: 11px; color: #5599bb;
+        padding: 4px; display: none;
+      }
+      #purify-progress {
+        height: 4px; background: #0a1628; border-radius: 2px;
+        border: 1px solid #1a3a5c; margin-top: 4px; overflow: hidden; display: none;
+      }
+      #purify-bar {
+        height: 100%; background: linear-gradient(90deg, #0055cc, #44aaff);
+        border-radius: 2px; transition: width 0.5s;
+      }
+
+      /* ── TANK ── */
+      #tank {
+        grid-area: tank;
+        position: relative;
+        background: linear-gradient(180deg, #041020 0%, #062040 40%, #083060 100%);
+        overflow: hidden;
+      }
+
+      /* Water overlay effect */
+      #tank::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent, transparent 40px,
+          rgba(100,200,255,0.03) 40px, rgba(100,200,255,0.03) 41px
+        );
+        pointer-events: none; z-index: 1;
+      }
+
+      /* Bubbles */
+      .bubble {
+        position: absolute;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, rgba(180,230,255,0.6), rgba(100,180,255,0.2));
+        border: 1px solid rgba(150,210,255,0.4);
+        animation: bubble-rise linear infinite;
+        pointer-events: none;
+      }
+
+      /* Monkey container */
+      #monkey-container { position: absolute; inset: 0; z-index: 2; }
+
+      /* Individual monkey */
+      .monkey {
+        position: absolute;
+        font-size: 20px;
+        line-height: 1;
+        cursor: default;
+        user-select: none;
+        transition: filter 0.3s;
+      }
+      .monkey.egg    { font-size: 18px; animation: egg-wiggle 2s ease-in-out infinite; }
+      .monkey.baby   { font-size: 16px; }
+      .monkey.juvenile { font-size: 19px; }
+      .monkey.adult  { font-size: 22px; }
+      .monkey.dead   { font-size: 18px; opacity: 0.7; }
+      .monkey.pregnant { animation: pregnant-pulse 1.5s ease-in-out infinite; }
+
+      .monkey-tooltip {
+        position: absolute;
+        bottom: 110%; left: 50%; transform: translateX(-50%);
+        background: rgba(0,10,20,0.9); border: 1px solid #1a5f8a;
+        border-radius: 4px; padding: 4px 6px; font-size: 9px;
+        white-space: nowrap; color: #cce4ff; pointer-events: none;
+        opacity: 0; transition: opacity 0.2s; z-index: 10;
+      }
+      .monkey:hover .monkey-tooltip { opacity: 1; }
+
+      /* Tank overlay (setup) */
+      #tank-overlay {
+        position: absolute; inset: 0; z-index: 20;
+        background: rgba(4, 16, 32, 0.85);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 12px;
+        text-align: center;
+      }
+      #tank-overlay h2 { color: #7fd8ff; font-size: 20px; }
+      #tank-overlay p { color: #88bbcc; font-size: 13px; max-width: 280px; line-height: 1.5; }
+      #tank-overlay .big-btn {
+        padding: 12px 24px; font-size: 14px; border-radius: 8px;
+        background: #0a5a8c; border: 2px solid #2a9ad4;
+        color: #fff; cursor: pointer;
+        transition: background 0.15s;
+      }
+      #tank-overlay .big-btn:hover { background: #0d70a8; }
+      #overlay-emoji { font-size: 48px; }
+
+      /* Notifications (float-up popups) */
+      #notifications { position: absolute; bottom: 10px; right: 10px; z-index: 30; pointer-events: none; }
+      .notif {
+        background: rgba(10,30,50,0.9); border: 1px solid #2a9ad4;
+        border-radius: 6px; padding: 6px 10px; margin-top: 4px;
+        font-size: 11px; color: #cce4ff;
+        animation: float-up 3s ease-out forwards;
+      }
+
+      /* ── STATUS BAR ── */
+      #statusbar {
+        grid-area: statusbar;
+        background: #071424;
+        border-top: 1px solid #1a3a5c;
+        display: flex; align-items: center; padding: 0 12px;
+        font-size: 11px; color: #5599bb;
+        gap: 8px;
+      }
+      #statusbar.warning { color: #ffaa44; }
+      #statusbar.danger  { color: #ff4444; }
+
+      /* ── ANIMATIONS ── */
+      @keyframes egg-wiggle {
+        0%,100% { transform: rotate(-3deg); }
+        50%      { transform: rotate(3deg); }
+      }
+      @keyframes pregnant-pulse {
+        0%,100% { transform: scale(1.0); }
+        50%      { transform: scale(1.15); }
+      }
+      @keyframes monkey-die {
+        0%   { opacity: 1; transform: rotate(0deg) translateY(0); }
+        100% { opacity: 0; transform: rotate(180deg) translateY(30px); }
+      }
+      @keyframes bubble-rise {
+        0%   { bottom: 0; opacity: 0.7; }
+        100% { bottom: 100%; opacity: 0; }
+      }
+      @keyframes log-flash {
+        0%   { background: rgba(255,220,0,0.3); }
+        100% { background: transparent; }
+      }
+      @keyframes float-up {
+        0%   { opacity: 1; transform: translateY(0); }
+        70%  { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-40px); }
+      }
+      @keyframes gauge-pulse {
+        0%,100% { opacity: 1; }
+        50%      { opacity: 0.5; }
+      }
+
+      .food-flake {
+        position: absolute;
+        color: #ccaa44;
+        font-size: 10px;
+        pointer-events: none;
+        z-index: 3;
+        animation: flake-fall linear forwards;
+      }
+      @keyframes flake-fall {
+        0%   { opacity: 0.9; transform: translateY(0) rotate(0deg); }
+        100% { opacity: 0;   transform: translateY(220px) rotate(200deg); }
+      }
+
+      .burst-bubble {
+        position: absolute;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, rgba(180,230,255,0.8), rgba(100,180,255,0.2));
+        border: 1px solid rgba(150,210,255,0.6);
+        pointer-events: none;
+        z-index: 3;
+        animation: burst-rise linear forwards;
+      }
+      @keyframes burst-rise {
+        0%   { opacity: 0.85; transform: translateY(0); }
+        100% { opacity: 0;    transform: translateY(-350px); }
+      }
+
+      /* ── DEX BUTTON ── */
+      #btn-dex {
+        background: none; border: 1px solid #1a3a5c; border-radius: 6px;
+        color: #5599bb; font-size: 16px; width: 36px; height: 36px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s, color 0.15s; flex-shrink: 0;
+      }
+      #btn-dex:hover { background: #0d2137; color: #7fd8ff; }
+      #population-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px; padding: 4px 0;
+      }
+      .pop-card {
+        background: #0d2137; border: 1px solid #1a3a5c; border-radius: 8px;
+        padding: 10px 8px;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        text-align: center; position: relative;
+      }
+      .pop-card.dead { opacity: 0.45; }
+      .pop-card-emoji  { font-size: 28px; line-height: 1; }
+      .pop-card-name   { font-size: 11px; color: #cce4ff; font-weight: bold; }
+      .pop-sex         { color: #5599bb; font-weight: normal; }
+      .pop-card-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+      .pop-stage { background: #0a3a5c; border-radius: 3px; padding: 1px 5px; font-size: 9px; color: #7fd8ff; }
+      .pop-gen   { font-size: 9px; color: #5599bb; }
+      .pop-card-health { font-size: 9px; color: #88bbcc; font-variant-numeric: tabular-nums; width: 100%; }
+      .pop-bar   { color: #44cc77; letter-spacing: -1px; }
+      .pop-hp    { color: #7fd8ff; }
+      .pop-card-timer  { font-size: 9px; color: #5599bb; }
+      .pop-age         { position: absolute; top: 5px; left: 6px; font-size: 9px; color: #5599bb; }
+      .pop-preg        { position: absolute; top: 5px; right: 6px; font-size: 9px; color: #ff88cc; }
+      .pop-traits      { font-size: 9px; color: #7faabb; line-height: 1.3; width: 100%; }
+      .gene-table      { border-collapse: collapse; width: 100%; font-size: 9px; }
+      .gene-table tr   { cursor: default; border-radius: 3px; }
+      .gene-table tr:hover { background: #132840; }
+      .gene-emoji      { padding: 2px 5px 2px 3px; font-size: 12px; }
+      .gene-alleles    { color: #aad4ee; font-variant-numeric: tabular-nums; padding: 2px 3px; }
+      .pop-empty       { text-align: center; color: #3a6a8a; padding: 20px; grid-column: 1/-1; }
+      .pop-section-header {
+        grid-column: 1 / -1;
+        font-size: 11px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding: 8px 2px 4px;
+        display: flex; align-items: center; gap: 6px; margin-top: 4px;
+      }
+      .pop-section-header:first-child { margin-top: 0; padding-top: 2px; }
+      .pop-section-count {
+        background: #0a3a5c; border-radius: 8px;
+        padding: 1px 6px; font-size: 10px; color: #44aaff;
+      }
+
+      /* ── MONKEYDEX MODAL ── */
+      #monkeydex-modal {
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,5,15,0.75);
+        display: none; align-items: center; justify-content: center;
+      }
+      #monkeydex-modal.open { display: flex; }
+      #monkeydex-popup {
+        background: #0d2137; border: 1px solid #1a5f8a;
+        border-radius: 10px; padding: 18px; width: 720px; max-height: 72vh;
+        overflow-y: auto; box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+        display: flex; flex-direction: column; gap: 10px;
+      }
+      .dex-header {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 14px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px;
+      }
+      .dex-close-btn {
+        background: none; border: none; color: #5599bb;
+        font-size: 18px; cursor: pointer; line-height: 1;
+      }
+      .dex-close-btn:hover { color: #7fd8ff; }
+      .dex-note {
+        font-size: 10px; color: #5599bb; text-align: center;
+        padding: 2px 0 4px;
+      }
+      #dex-grid {
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .dex-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .dex-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .dex-section-header {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+        color: #5599bb; border-bottom: 1px solid #1a3a5c; padding-bottom: 4px; margin-top: 6px;
+      }
+      .dex-count { font-size: 9px; color: #7fd8ff; }
+      .dex-card {
+        background: #071424; border: 1px solid #1a3a5c; border-radius: 8px;
+        padding: 10px 6px; text-align: center;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+      }
+      .dex-card.undiscovered { opacity: 0.45; }
+      .dex-emoji { font-size: 26px; line-height: 1; min-height: 30px; }
+      .dex-name  { font-size: 11px; font-weight: bold; }
+      .dex-rarity { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; }
+      .dex-desc  { font-size: 9px; color: #88bbcc; line-height: 1.4; }
+      .dex-found { font-size: 9px; color: #44cc77; }
+
+      /* ── TANK TABS ── */
+      #tank-tab-bar {
+        position: absolute; top: 0; left: 0;
+        z-index: 10; display: flex; gap: 0;
+      }
+      .tank-tab {
+        background: rgba(4,16,32,0.85); border: 1px solid #1a3a5c;
+        border-bottom: none; border-right: none;
+        padding: 5px 14px; font-size: 11px; color: #5599bb;
+        cursor: pointer; transition: background 0.15s, color 0.15s;
+      }
+      .tank-tab:last-child { border-right: 1px solid #1a3a5c; }
+      .tank-tab:hover { background: rgba(13,33,55,0.9); color: #aad4ee; }
+      .tank-tab.active { background: #0d2137; color: #7fd8ff; border-bottom: 1px solid #0d2137; }
+
+      /* ── LIFE SUPPORT VIEW ── */
+      #life-support-view {
+        position: absolute; inset: 0; z-index: 5;
+        background: #041020;
+        display: none; flex-direction: column;
+        overflow-y: auto; padding: 36px 12px 12px;
+        color: #7fd8ff; font-size: 16px;
+      }
+      #life-support-view::-webkit-scrollbar { width: 4px; }
+      #life-support-view::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 2px; }
+      #life-support-view.active { display: flex; }
+      #life-support-view-title {
+        font-size: 12px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px; margin-bottom: 6px;
+        flex-shrink: 0;
+      }
+
+      /* ── POPULATION VIEW ── */
+      #population-view {
+        position: absolute; inset: 0; z-index: 5;
+        background: #041020;
+        display: none; flex-direction: column;
+        overflow-y: auto; padding: 36px 12px 12px;
+      }
+      #population-view::-webkit-scrollbar { width: 4px; }
+      #population-view::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 2px; }
+      #population-view.active { display: flex; }
+      #population-view-title {
+        font-size: 12px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px; margin-bottom: 6px;
+        flex-shrink: 0;
+      }
+
+      #life-support-content {
+        display: flex; flex-wrap: wrap; gap: 16px;
+        justify-content: flex-start; align-content: flex-start;
+      }
+
+      /* ── LIFE SUPPORT PANELS ── */
+      .ls-panel {
+        width: 220px;
+        background: #0d2137; border: 1px solid #1a3a5c; border-radius: 8px;
+        padding: 12px; display: flex; flex-direction: column; gap: 10px;
+      }
+      .ls-panel-title {
+        font-size: 12px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 6px;
+      }
+      .ls-level-track {
+        display: flex; align-items: center; gap: 0; padding: 4px 0;
+      }
+      .ls-level-node {
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #0a1628; border: 2px solid #1a3a5c;
+        flex-shrink: 0; transition: background 0.3s, border-color 0.3s;
+      }
+      .ls-level-node.active {
+        background: #0a5a8c; border-color: #2a9ad4;
+        box-shadow: 0 0 6px rgba(42,154,212,0.6);
+      }
+      .ls-level-line {
+        flex: 1; height: 2px; background: #1a3a5c;
+      }
+      .ls-info-grid { display: flex; flex-direction: column; gap: 4px; }
+      .ls-info-row {
+        display: flex; justify-content: space-between;
+        font-size: 11px; color: #88bbcc;
+      }
+      .ls-duration-track {
+        height: 6px; background: #0a1628; border-radius: 3px;
+        border: 1px solid #1a3a5c; overflow: hidden;
+      }
+      .ls-duration-bar {
+        height: 100%; background: linear-gradient(90deg, #0055cc, #44aaff);
+        border-radius: 3px; transition: width 0.5s;
+      }
+
+      /* ── MOLTS ── */
+      .molt {
+        position: absolute;
+        font-size: 16px; line-height: 1;
+        cursor: pointer; user-select: none;
+        opacity: 0.55;
+        filter: sepia(1) brightness(0.75);
+        z-index: 2;
+        transition: top 2s ease-out, opacity 0.15s;
+      }
+      .molt:hover { opacity: 0.9; }
+      .molt.molt-bobbing {
+        animation: molt-bob 2.5s ease-in-out infinite;
+      }
+      .molt.molt-dissolving {
+        animation: molt-dissolve 1.5s ease-out forwards !important;
+        pointer-events: none;
+        transition: none;
+      }
+      @keyframes molt-bob {
+        0%,100% { transform: translateY(0) rotate(-4deg); }
+        50%      { transform: translateY(-5px) rotate(4deg); }
+      }
+      @keyframes molt-dissolve {
+        0%   { opacity: 0.55; transform: scale(1); filter: sepia(1) brightness(0.75); }
+        60%  { opacity: 0.3;  transform: scale(1.1) translateY(-6px); filter: sepia(1) brightness(1.2) blur(2px); }
+        100% { opacity: 0;    transform: scale(0.2) translateY(-20px); filter: sepia(1) brightness(2) blur(6px); }
+      }
+
+      /* ── RARE VARIANT GLOWS (applied via JS inline style) ── */
+      @keyframes biolum-pulse {
+        0%,100% { text-shadow: 0 0 8px 3px rgba(100,255,200,0.6); }
+        50%      { text-shadow: 0 0 14px 6px rgba(100,255,200,0.9); }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- HEADER -->
+    <div id="header">
+      <h1>🦐 Sea Monkey Farm</h1>
+      <div class="header-census">
+        <div class="hstat">
+          <span class="hstat-label">🥚 Eggs</span>
+          <span class="hstat-value" id="cnt-eggs">0</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">🐠 Babies</span>
+          <span class="hstat-value" id="cnt-babies">0</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">🐟 Juveniles</span>
+          <span class="hstat-value" id="cnt-juveniles">0</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">🦐 Adults</span>
+          <span class="hstat-value" id="cnt-adults">0</span>
+        </div>
+      </div>
+      <button id="btn-dex" title="Monkeydex — Rare Variants">🔬</button>
+      <button id="btn-settings" title="Settings">⚙️</button>
+      <div class="header-stats">
+        <div class="hstat">
+          <span class="hstat-label">Population</span>
+          <span class="hstat-value" id="stat-pop">0</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">Generation</span>
+          <span class="hstat-value" id="stat-gen">1</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">Born</span>
+          <span class="hstat-value" id="stat-born">0</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-label">Died</span>
+          <span class="hstat-value" id="stat-died">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS POPUP -->
+    <div id="settings-overlay">
+      <div id="settings-popup">
+        <div class="settings-title">⚙️ Settings</div>
+        <div class="settings-section">
+          <div class="settings-row">
+            <span>Debug Mode</span>
+            <button class="btn" id="btn-debug" style="width:auto; padding:4px 10px;">🐛 Off</button>
+          </div>
+          <div id="debug-controls" style="display:none;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="font-size:10px; color:#5599bb;">Speed</span>
+              <input type="range" id="debug-speed-slider" min="1" max="20" step="1" value="1" style="flex:1; accent-color:#aa44ff;">
+              <span id="debug-speed-label" style="font-size:11px; color:#aa44ff; font-weight:bold; min-width:28px; text-align:right;">1×</span>
+            </div>
+            <div style="display:flex; gap:4px;">
+              <button class="btn" id="btn-debug-give-life"    style="flex:1; font-size:10px; padding:4px;">+🧪 Life</button>
+              <button class="btn" id="btn-debug-give-egg"     style="flex:1; font-size:10px; padding:4px;">+🥚 Eggs</button>
+              <button class="btn" id="btn-debug-give-flakes"  style="flex:1; font-size:10px; padding:4px;">+✨ Flakes</button>
+              <button class="btn" id="btn-debug-give-currency" style="flex:1; font-size:10px; padding:4px;">+💷 £100</button>
+            </div>
+            <div style="margin-top:6px; display:flex; flex-direction:column; gap:3px;">
+              <div style="font-size:9px; color:#5599bb; text-transform:uppercase; letter-spacing:1px; margin-bottom:2px;">Lock Conditions</div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; min-width:20px;">🍔</span>
+                <button class="btn" id="dbg-food-0"   style="flex:1; font-size:9px; padding:2px;">0</button>
+                <button class="btn debug-active" id="dbg-food-nrm" style="flex:1; font-size:9px; padding:2px;">Normal</button>
+                <button class="btn" id="dbg-food-100" style="flex:1; font-size:9px; padding:2px;">100</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; min-width:20px;">💨</span>
+                <button class="btn" id="dbg-oxygen-0"   style="flex:1; font-size:9px; padding:2px;">0</button>
+                <button class="btn debug-active" id="dbg-oxygen-nrm" style="flex:1; font-size:9px; padding:2px;">Normal</button>
+                <button class="btn" id="dbg-oxygen-100" style="flex:1; font-size:9px; padding:2px;">100</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; min-width:20px;">🧹</span>
+                <button class="btn" id="dbg-clean-0"   style="flex:1; font-size:9px; padding:2px;">0</button>
+                <button class="btn debug-active" id="dbg-clean-nrm" style="flex:1; font-size:9px; padding:2px;">Normal</button>
+                <button class="btn" id="dbg-clean-100" style="flex:1; font-size:9px; padding:2px;">100</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-row">
+            <span>FPS</span>
+            <span id="fps-value" style="font-size:11px; color:#7fd8ff; font-weight:bold; font-variant-numeric:tabular-nums;">—</span>
+          </div>
+          <div class="settings-row">
+            <span>Active Timers</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-timers">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-section">
+          <button class="btn" id="btn-save">💾 Save Progress</button>
+          <button class="btn" id="btn-reload">🔄 Reload Game</button>
+          <button class="btn warning" id="btn-reset">🗑️ Reset Tank</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MONKEYDEX MODAL -->
+    <div id="monkeydex-modal">
+      <div id="monkeydex-popup">
+        <div class="dex-header">
+          <span>🔬 Monkeydex — Variants &amp; Mastery</span>
+          <button class="dex-close-btn" id="monkeydex-close">✕</button>
+        </div>
+        <div class="dex-note">Breed 10 of each color (5 of each gene) to unlock mastery buffs! ⭐</div>
+        <div id="dex-grid"></div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+
+      <!-- Tank Level -->
+      <div class="panel">
+        <div class="panel-title">Tank Level</div>
+        <div id="tank-level-panel">
+          <div id="tank-level-badge">
+            <span>LV</span>
+            <span id="tank-level-val">1</span>
+          </div>
+          <div id="tank-xp-wrap">
+            <div id="tank-xp-track"><div id="tank-xp-bar" style="width:0%"></div></div>
+            <div id="tank-xp-label">0 / 100 XP</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tank conditions -->
+      <div class="panel" id="conditions-panel">
+        <div class="panel-title">Tank Conditions</div>
+        <div class="gauge">
+          <div class="gauge-label"><span>🍔 Food</span><span id="food-val">100</span></div>
+          <div class="gauge-track"><div class="gauge-fill food" id="food-bar" style="width:100%"></div></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-label"><span>💨 Oxygen</span><span id="oxygen-val">100</span></div>
+          <div class="gauge-track"><div class="gauge-fill oxygen" id="oxygen-bar" style="width:100%"></div></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-label"><span>🧹 Clean</span><span id="clean-val">100</span></div>
+          <div class="gauge-track"><div class="gauge-fill clean" id="clean-bar" style="width:100%"></div></div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="panel" id="actions-panel">
+        <div class="panel-title">Actions</div>
+        <button class="btn" id="btn-feed" disabled>🍔 Feed (+50)</button>
+        <button class="btn" id="btn-aerate" disabled>💨 Aerate (+50)</button>
+        <button class="btn" id="btn-clean" disabled>🧹 Clean (+40)</button>
+      </div>
+
+      <!-- Inventory -->
+      <div class="panel" id="inventory-panel">
+        <div class="panel-title">Inventory</div>
+        <div class="inv-item" style="border-bottom: 1px solid #1a3a5c; margin-bottom: 4px; padding-bottom: 6px;">
+          <span class="inv-icon">💷</span>
+          <div class="inv-info">
+            <span class="inv-name">Balance</span>
+            <span class="inv-desc">Collect shed skins to earn money</span>
+          </div>
+          <span id="currency-balance" style="font-size:15px; font-weight:bold; color:#7fd8ff;">£0</span>
+        </div>
+        <div class="inv-item">
+          <span class="inv-icon">🧪</span>
+          <div class="inv-info">
+            <span class="inv-name">Life Booster</span>
+            <span class="inv-desc">+10 min to all adults</span>
+          </div>
+          <span class="inv-count" id="inv-life-booster-cnt">0</span>
+          <button class="btn inv-use-btn" id="btn-use-life-booster" disabled>Use</button>
+        </div>
+        <div class="inv-item">
+          <span class="inv-icon">🥚</span>
+          <div class="inv-info">
+            <span class="inv-name">Booster Egg Pack</span>
+            <span class="inv-desc">Adds 5–8 new eggs</span>
+          </div>
+          <span class="inv-count" id="inv-egg-pack-cnt">0</span>
+          <button class="btn inv-use-btn" id="btn-use-egg-pack" disabled>Use</button>
+        </div>
+        <div class="inv-item">
+          <span class="inv-icon">✨</span>
+          <div class="inv-info">
+            <span class="inv-name">Glowing Flakes <span id="glowing-flakes-active-badge" style="display:none; color:#aa44ff; font-size:9px; font-weight:bold;">● ACTIVE</span></span>
+            <span class="inv-desc">10× mutation for next birth (parents take damage)</span>
+          </div>
+          <span class="inv-count" id="inv-glowing-flakes-cnt">0</span>
+          <button class="btn inv-use-btn" id="btn-use-glowing-flakes" disabled>Use</button>
+        </div>
+        <div class="inv-item">
+          <span class="inv-icon">🔍</span>
+          <div class="inv-info">
+            <span class="inv-name">Magnifying Glass</span>
+            <span class="inv-desc">Toggle to reveal full genotype in tooltips</span>
+          </div>
+          <span class="inv-count" id="inv-magnifying-glass-cnt">0</span>
+          <button class="btn inv-use-btn" id="btn-toggle-magnifying-glass" disabled>🔍 Phenotype</button>
+        </div>
+      </div>
+
+      <!-- Debug timers (sidebar, shown when debug on) -->
+      <div class="panel" id="debug-timers-panel" style="display:none;">
+        <div class="panel-title">⏱ Active Timers</div>
+        <div id="debug-timer-list"></div>
+      </div>
+
+      <!-- Event log -->
+      <div class="panel" style="flex:1; min-height:80px; display:flex; flex-direction:column;">
+        <div class="panel-title">Event Log</div>
+        <div id="event-log" style="flex:1; overflow-y:auto;"></div>
+      </div>
+
+    </div>
+
+    <!-- TANK -->
+    <div id="tank">
+      <div id="tank-tab-bar">
+        <button class="tank-tab active" id="tab-tank">🌊 Tank</button>
+        <button class="tank-tab" id="tab-life-support">⚙️ Life Support</button>
+        <button class="tank-tab" id="tab-population">🦐 Population</button>
+      </div>
+      <div id="life-support-view">
+        <div id="life-support-view-title">⏳ Temporary Addons</div>
+        <div id="life-support-content"></div>
+      </div>
+      <div id="population-view">
+        <div id="population-view-title">📋 Population</div>
+        <div id="population-list"></div>
+      </div>
+      <div id="tank-overlay">
+        <div id="overlay-emoji">🌊</div>
+        <h2>Your Tank is Empty</h2>
+        <p>Add a water packet to begin purification, then release your sea monkey eggs!</p>
+        <div id="purify-countdown" style="display:none; color:#7fd8ff; font-size:13px;"></div>
+        <div id="purify-progress" style="display:none; width:220px; height:6px; background:#0a1628; border-radius:3px; border:1px solid #1a3a5c; overflow:hidden;">
+          <div id="purify-bar" style="width:0%; height:100%; background:linear-gradient(90deg,#0055cc,#44aaff); border-radius:3px; transition:width 0.5s;"></div>
+        </div>
+        <button class="big-btn" id="overlay-btn-water">💧 Add Water Packet</button>
+      </div>
+      <div id="monkey-container"></div>
+      <div id="notifications"></div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div id="statusbar">
+      <span id="status-msg">Waiting for water...</span>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

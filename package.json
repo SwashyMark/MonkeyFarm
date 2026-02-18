@@ -1,0 +1,16 @@
+{
+  "name": "Monkey-Farm",
+  "productName": "Monkey Farm",
+  "description": "My Electron application description",
+  "keywords": [],
+  "main": "./main.js",
+  "version": "1.0.0",
+  "author": "markrose",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "40.1.0"
+  }
+}
