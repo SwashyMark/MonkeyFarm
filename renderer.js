@@ -721,6 +721,7 @@ function gameTick(dtMs) {
         aer.startedAt = null;
         aer.duration  = null;
       }
+      generateBubbles(AERATION_BUBBLE_COUNTS[aer.level]);
     }
   }
 
@@ -757,6 +758,13 @@ function gameTick(dtMs) {
         feeder.startedAt = null;
         feeder.duration  = null;
       }
+    }
+  }
+
+  if (feeder.level > 0) {
+    if (!feeder.lastFoodSpawn || (Date.now() - feeder.lastFoodSpawn) >= 30_000) {
+      feeder.lastFoodSpawn = Date.now();
+      spawnFoodFlakes();
     }
   }
 
@@ -1432,6 +1440,7 @@ function renderLifeSupport() {
       const lvl = AERATION_LEVELS[nextLevel];
       state.aeration.startedAt = Date.now();
       state.aeration.duration  = randRange(lvl.durationMin, lvl.durationMax);
+      generateBubbles(AERATION_BUBBLE_COUNTS[nextLevel]);
       addXP(10);
       addLog(`💨 Aeration upgraded to ${lvl.name}!`);
       addNotification(`💨 ${lvl.name} aeration active!`);
@@ -2262,9 +2271,13 @@ function setupEventListeners() {
 // 14. BUBBLE GENERATION + INIT
 // ─────────────────────────────────────────────
 
-function generateBubbles() {
+const AERATION_BUBBLE_COUNTS = [5, 10, 15, 20, 25, 30];
+
+function generateBubbles(count) {
   const tank = document.getElementById('tank');
-  for (let i = 0; i < 15; i++) {
+  tank.querySelectorAll('.bubble').forEach(b => b.remove());
+  const n = count ?? AERATION_BUBBLE_COUNTS[state?.aeration?.level ?? 0] ?? 5;
+  for (let i = 0; i < n; i++) {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     const size = 4 + Math.random() * 8;
