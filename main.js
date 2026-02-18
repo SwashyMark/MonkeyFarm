@@ -64,7 +64,7 @@ async function checkForUpdates() {
 }
 // ─────────────────────────────────────────────────────────────────────────
 
-const UPDATE_INTERVAL_MS = 5 * 60 * 1000
+const UPDATE_INTERVAL_MS = 60 * 1000
 let nextCheckTime = Date.now()
 
 ipcMain.handle('get-app-version', () => app.getVersion())
