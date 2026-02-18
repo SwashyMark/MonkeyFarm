@@ -4,7 +4,7 @@
   "description": "My Electron application description",
   "keywords": [],
   "main": "./main.js",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "author": "markrose",
   "scripts": {
     "start": "electron ."
