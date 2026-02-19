@@ -269,18 +269,18 @@ function resolveStats(m) {
   };
 }
 
-function getMaxOxygen() {
-  const level = state.aeration?.level || 0;
+function getMaxOxygen(tank) {
+  const level = (tank || activeTank())?.aeration?.level || 0;
   return 100 + (AERATION_LEVELS[level]?.maxOxygenBonus || 0);
 }
 
-function getMaxCleanliness() {
-  const level = state.skimmer?.level || 0;
+function getMaxCleanliness(tank) {
+  const level = (tank || activeTank())?.skimmer?.level || 0;
   return 100 + (SKIMMER_LEVELS[level]?.maxCleanBonus || 0);
 }
 
-function getMaxFood() {
-  const level = state.feeder?.level || 0;
+function getMaxFood(tank) {
+  const level = (tank || activeTank())?.feeder?.level || 0;
   return 100 + (FEEDER_LEVELS[level]?.maxFoodBonus || 0);
 }
 
@@ -295,9 +295,11 @@ function xpForLevel(level) {
 }
 function addXP(amount) {
   if (!amount || amount <= 0) return;
-  const prev = xpToLevel(state.tankXP || 0);
-  state.tankXP = (state.tankXP || 0) + amount;
-  const next = xpToLevel(state.tankXP);
+  const t = activeTank();
+  if (!t) return;
+  const prev = xpToLevel(t.tankXP || 0);
+  t.tankXP = (t.tankXP || 0) + amount;
+  const next = xpToLevel(t.tankXP);
   if (next > prev) {
     addLog(`⭐ Tank reached Level ${next}!`);
     addNotification(`⭐ Tank Level Up! Now Level ${next}`);
@@ -337,35 +339,42 @@ function genotypeCardHTML(dna) {
 // ───────────────────────────────────���─────────
 // 3. DEFAULT STATE
 // ─────────────────────────────────────────────
+// Per-tank defaults — each bought tank gets a deep copy of this
+const DEFAULT_TANK = {
+  id: 0,
+  name: 'Tank 1',
+  waterAdded: false,
+  purifying: false,
+  purifyStartTime: null,
+  purifyDuration: PURIFY_DURATION,
+  waterPure: false,
+  eggsAdded: false,
+  food: 100,
+  oxygen: 100,
+  cleanliness: 100,
+  aeration:  { level: 0, startedAt: null, duration: null },
+  skimmer:   { level: 0, startedAt: null, duration: null },
+  feeder:    { level: 0, startedAt: null, duration: null },
+  tankXP: 0,
+  tankCreatedAt: null,
+  glowingFlakesActive: false,
+};
+
 const DEFAULT_STATE = {
   version: 3,
   lastSave: null,
   lastTick: null,
-  tankCreatedAt: null,
   playTimeMs: 0,
   totalOfflineMs: 0,
   gameStarted: false,
   fpsStressPop: null,
-  tankXP: 0,
-  tank: {
-    waterAdded: false,
-    purifying: false,
-    purifyStartTime: null,
-    purifyDuration: PURIFY_DURATION,
-    waterPure: false,
-    eggsAdded: false,
-    food: 100,
-    oxygen: 100,
-    cleanliness: 100,
-  },
+  activeTankId: 0,
+  tanks: [ { ...JSON.parse(JSON.stringify(DEFAULT_TANK)), id: 0, name: 'Tank 1', tankCreatedAt: null } ],
   monkeys: [],
   nextMonkeyId: 1,
   molts: [],
   nextMoltId: 1,
   currency: 0,
-  aeration: { level: 0, startedAt: null, duration: null },
-  skimmer:  { level: 0, startedAt: null, duration: null },
-  feeder:   { level: 0, startedAt: null, duration: null },
   stats: {
     totalBorn: 0,
     totalDied: 0,
@@ -398,7 +407,6 @@ const DEFAULT_STATE = {
     L_ANC:        { discovered: false, count: 0, mastered: false },
     filterFeeder: { discovered: false, count: 0, mastered: false },
   },
-  glowingFlakesActive: false,
   magnifyingGlassMode: false,
   inventory: {
     lifeBooster: 0,
@@ -423,6 +431,9 @@ let fpsWindowStart = 0;
 let renderDt = 25; // ms since last render frame, used for delta-time movement
 let fpsLowSince = null;        // timestamp when FPS first dropped below 30
 let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
+
+// Returns the currently-viewed tank object
+function activeTank() { return state.tanks[state.activeTankId]; }
 
 // ─────────────────────────────────────────────
 // 5. PERSISTENCE
@@ -451,8 +462,29 @@ function loadState() {
 }
 
 function migrateState(loaded) {
+  // ── Multi-tank: wrap old single-tank format ──────────────────────────────
+  if (!loaded.tanks) {
+    loaded.tanks = [{
+      ...JSON.parse(JSON.stringify(DEFAULT_TANK)),
+      id: 0, name: 'Tank 1',
+      ...(loaded.tank || {}),
+      aeration:            loaded.aeration || JSON.parse(JSON.stringify(DEFAULT_TANK.aeration)),
+      skimmer:             loaded.skimmer  || JSON.parse(JSON.stringify(DEFAULT_TANK.skimmer)),
+      feeder:              loaded.feeder   || JSON.parse(JSON.stringify(DEFAULT_TANK.feeder)),
+      tankXP:              loaded.tankXP              || 0,
+      tankCreatedAt:       loaded.tankCreatedAt       || null,
+      glowingFlakesActive: loaded.glowingFlakesActive || loaded.splicerActive || false,
+    }];
+    loaded.activeTankId = 0;
+  }
+  // Backfill tankId on monkeys / molts from old saves
+  (loaded.monkeys || []).forEach(m => { if (m.tankId == null) m.tankId = 0; });
+  (loaded.molts   || []).forEach(m => { if (m.tankId == null) m.tankId = 0; });
+
   const s = Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_STATE)), loaded);
-  s.tank  = Object.assign({}, DEFAULT_STATE.tank,  loaded.tank  || {});
+  // Merge each tank with DEFAULT_TANK to fill in missing fields
+  s.tanks = (loaded.tanks || []).map(t => Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_TANK)), t));
+  s.activeTankId = loaded.activeTankId ?? 0;
   s.stats = Object.assign({}, DEFAULT_STATE.stats, loaded.stats || {});
   s.milestones   = loaded.milestones || {};
   s.log          = loaded.log || [];
@@ -468,7 +500,7 @@ function migrateState(loaded) {
   s.inventory = inv;
 
   // ── Flags migration ──────────────────────────
-  s.glowingFlakesActive = loaded.glowingFlakesActive || loaded.splicerActive || false;
+  // glowingFlakesActive is now per-tank (handled in tanks migration above)
   s.magnifyingGlassMode = loaded.magnifyingGlassMode || false;
 
   // ── Dex migration ────────────────────────────
@@ -551,10 +583,14 @@ function migrateState(loaded) {
 // ─────────────────────────────────────────────
 // 6. STATE HELPERS
 // ─────────────────────────────────────────────
-function addLog(msg, group) {
+function addLog(msg, group = null, tankId = undefined) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  state.log.unshift({ msg, time: timeStr, isNew: true, group: group ?? msg });
+  const showLabel = tankId !== undefined && state.tanks && state.tanks.length > 1;
+  const label = showLabel ? ` [T${tankId + 1}]` : '';
+  const displayMsg = msg + label;
+  const groupKey = (group ?? msg) + label;
+  state.log.unshift({ msg: displayMsg, time: timeStr, isNew: true, group: groupKey });
   if (state.log.length > 80) state.log.pop();
 }
 
@@ -589,6 +625,7 @@ function createMonkey(opts = {}) {
     lastMatedAt: null,
     dna,
     size: 1,
+    tankId: opts.tankId ?? state.activeTankId,
     _phase: Math.random() * Math.PI * 2,
     _x: 0, _y: 0, _targetX: 0, _targetY: 0,
   };
@@ -606,7 +643,7 @@ function killMonkey(monkey, cause) {
   monkey.pregnant = false;
   state.stats.totalDied++;
   if (cause === 'old age') addXP(15);
-  addLog(`💀 ${monkey.name} died (${cause})`, `💀 died (${cause})`);
+  addLog(`💀 ${monkey.name} died (${cause})`, `💀 died (${cause})`, monkey.tankId);
 }
 
 function createMolt(m, fromStage) {
@@ -624,6 +661,7 @@ function createMolt(m, fromStage) {
     emoji,
     monkeyName: m.name,
     createdAt: Date.now(),
+    tankId: m.tankId ?? state.activeTankId,
   });
 }
 
@@ -655,8 +693,8 @@ function getMasteryBonuses() {
 // ─────────────────────────────────────────────
 // 8. GENETICS
 // ─────────────────────────────────────────────
-function inheritGenes(parentA, parentB) {
-  const mutMult = state.glowingFlakesActive ? 10 : 1;
+function inheritGenes(parentA, parentB, glowingFlakesActive = false) {
+  const mutMult = glowingFlakesActive ? 10 : 1;
 
   function inheritLocus(pA, pB, geneId) {
     const gene = GENE_DATA.find(g => g.id === geneId);
@@ -700,158 +738,164 @@ function inheritGenes(parentA, parentB) {
 
 function gameTick(dtMs) {
   const dtSec = dtMs / 1000;
-  const t = state.tank;
+  const mb = getMasteryBonuses();
   state.playTimeMs = (state.playTimeMs || 0) + dtMs;
 
-  // --- Purification countdown ---
-  if (t.purifying && !t.waterPure) {
-    const elapsed = Date.now() - t.purifyStartTime;
-    const effectivePurifyElapsed = debugMode ? elapsed * debugSpeed : elapsed;
-    if (effectivePurifyElapsed >= t.purifyDuration) {
-      t.waterPure = true;
-      t.purifying = false;
-      addLog('🌊 Water is pure! Ready to release eggs.');
-    }
-  }
-
-  if (!t.eggsAdded) return;
-
-  // --- Per-monkey resource drain ---
-  const alive       = state.monkeys.filter(m => m.alive);
-  const aliveNonEgg = alive.filter(m => m.stage !== 'egg');
-  const deadCount   = state.monkeys.filter(m => !m.alive).length;
-  const mb = getMasteryBonuses();
-
-  // --- Continuous XP for keeping monkeys alive ---
-  const xpAdults    = alive.filter(m => m.stage === 'adult').length;
-  const xpJuveniles = alive.filter(m => m.stage === 'juvenile').length;
-  addXP((xpAdults * 1 + xpJuveniles * 0.5) * dtSec / 60);
-
-  let foodDrain = 0, cleanGain = 0, oxygenGain = 0;
-  for (const m of aliveNonEgg) {
-    const stats = resolveStats(m);
-    foodDrain += FOOD_DRAIN_PER * stats.hungerRate;
-    if (stats.isFF) {
-      cleanGain  += FILTER_FEED_RATE * mb.greenFFMult;
-      if (mb.ffOxygenBoost) oxygenGain += FILTER_FEED_RATE * 0.3;
-    }
-  }
-
-  // --- Aeration expiry/downgrade ---
-  const aer = state.aeration || (state.aeration = { level: 0, startedAt: null, duration: null });
-  if (aer.level > 0 && aer.startedAt != null) {
-    const aerElapsed = (Date.now() - aer.startedAt) * (debugMode ? debugSpeed : 1);
-    if (aerElapsed >= aer.duration) {
-      aer.level--;
-      addLog(`💨 Aeration downgraded to ${AERATION_LEVELS[aer.level].name}.`);
-      if (aer.level > 0) {
-        const lvl = AERATION_LEVELS[aer.level];
-        aer.startedAt = Date.now();
-        aer.duration  = randRange(lvl.durationMin, lvl.durationMax);
-      } else {
-        aer.startedAt = null;
-        aer.duration  = null;
-      }
-      generateBubbles(AERATION_BUBBLE_COUNTS[aer.level]);
-    }
-  }
-
-  // --- Skimmer expiry/downgrade ---
-  const skim = state.skimmer || (state.skimmer = { level: 0, startedAt: null, duration: null });
-  if (skim.level > 0 && skim.startedAt != null) {
-    const skimElapsed = (Date.now() - skim.startedAt) * (debugMode ? debugSpeed : 1);
-    if (skimElapsed >= skim.duration) {
-      skim.level--;
-      addLog(`🧹 Skimmer downgraded to ${SKIMMER_LEVELS[skim.level].name}.`);
-      if (skim.level > 0) {
-        const lvl = SKIMMER_LEVELS[skim.level];
-        skim.startedAt = Date.now();
-        skim.duration  = randRange(lvl.durationMin, lvl.durationMax);
-      } else {
-        skim.startedAt = null;
-        skim.duration  = null;
+  // Process each tank independently
+  for (const tank of state.tanks) {
+    // --- Purification countdown (runs even before eggs) ---
+    if (tank.purifying && !tank.waterPure) {
+      const elapsed = Date.now() - tank.purifyStartTime;
+      const effectivePurifyElapsed = debugMode ? elapsed * debugSpeed : elapsed;
+      if (effectivePurifyElapsed >= tank.purifyDuration) {
+        tank.waterPure = true;
+        tank.purifying = false;
+        addLog('🌊 Water is pure! Ready to release eggs.', null, tank.id);
       }
     }
-  }
 
-  // --- Feeder expiry/downgrade ---
-  const feeder = state.feeder || (state.feeder = { level: 0, startedAt: null, duration: null });
-  if (feeder.level > 0 && feeder.startedAt != null) {
-    const feederElapsed = (Date.now() - feeder.startedAt) * (debugMode ? debugSpeed : 1);
-    if (feederElapsed >= feeder.duration) {
-      feeder.level--;
-      addLog(`🍽️ Feeder downgraded to ${FEEDER_LEVELS[feeder.level].name}.`);
-      if (feeder.level > 0) {
-        const lvl = FEEDER_LEVELS[feeder.level];
-        feeder.startedAt = Date.now();
-        feeder.duration  = randRange(lvl.durationMin, lvl.durationMax);
-      } else {
-        feeder.startedAt = null;
-        feeder.duration  = null;
+    if (!tank.eggsAdded) continue;
+
+    const aliveTank   = state.monkeys.filter(m => m.alive && m.tankId === tank.id);
+    const aliveNonEgg = aliveTank.filter(m => m.stage !== 'egg');
+    const deadTank    = state.monkeys.filter(m => !m.alive && m.tankId === tank.id);
+
+    // --- Continuous XP for keeping monkeys alive (active tank only) ---
+    if (tank.id === state.activeTankId) {
+      const xpAdults    = aliveTank.filter(m => m.stage === 'adult').length;
+      const xpJuveniles = aliveTank.filter(m => m.stage === 'juvenile').length;
+      addXP((xpAdults * 1 + xpJuveniles * 0.5) * dtSec / 60);
+    }
+
+    let foodDrain = 0, cleanGain = 0, oxygenGain = 0;
+    for (const m of aliveNonEgg) {
+      const stats = resolveStats(m);
+      foodDrain += FOOD_DRAIN_PER * stats.hungerRate;
+      if (stats.isFF) {
+        cleanGain  += FILTER_FEED_RATE * mb.greenFFMult;
+        if (mb.ffOxygenBoost) oxygenGain += FILTER_FEED_RATE * 0.3;
       }
     }
-  }
 
-  if (feeder.level > 0) {
-    if (!feeder.lastFoodSpawn || (Date.now() - feeder.lastFoodSpawn) >= 30_000) {
-      feeder.lastFoodSpawn = Date.now();
-      spawnFoodFlakes();
+    // --- Aeration expiry/downgrade ---
+    const aer = tank.aeration;
+    if (aer.level > 0 && aer.startedAt != null) {
+      const aerElapsed = (Date.now() - aer.startedAt) * (debugMode ? debugSpeed : 1);
+      if (aerElapsed >= aer.duration) {
+        aer.level--;
+        addLog(`💨 Aeration downgraded to ${AERATION_LEVELS[aer.level].name}.`, null, tank.id);
+        if (aer.level > 0) {
+          const lvl = AERATION_LEVELS[aer.level];
+          aer.startedAt = Date.now();
+          aer.duration  = randRange(lvl.durationMin, lvl.durationMax);
+        } else {
+          aer.startedAt = null;
+          aer.duration  = null;
+        }
+        if (tank.id === state.activeTankId) generateBubbles(AERATION_BUBBLE_COUNTS[aer.level]);
+      }
+    }
+
+    // --- Skimmer expiry/downgrade ---
+    const skim = tank.skimmer;
+    if (skim.level > 0 && skim.startedAt != null) {
+      const skimElapsed = (Date.now() - skim.startedAt) * (debugMode ? debugSpeed : 1);
+      if (skimElapsed >= skim.duration) {
+        skim.level--;
+        addLog(`🧹 Skimmer downgraded to ${SKIMMER_LEVELS[skim.level].name}.`, null, tank.id);
+        if (skim.level > 0) {
+          const lvl = SKIMMER_LEVELS[skim.level];
+          skim.startedAt = Date.now();
+          skim.duration  = randRange(lvl.durationMin, lvl.durationMax);
+        } else {
+          skim.startedAt = null;
+          skim.duration  = null;
+        }
+      }
+    }
+
+    // --- Feeder expiry/downgrade ---
+    const feeder = tank.feeder;
+    if (feeder.level > 0 && feeder.startedAt != null) {
+      const feederElapsed = (Date.now() - feeder.startedAt) * (debugMode ? debugSpeed : 1);
+      if (feederElapsed >= feeder.duration) {
+        feeder.level--;
+        addLog(`🍽️ Feeder downgraded to ${FEEDER_LEVELS[feeder.level].name}.`, null, tank.id);
+        if (feeder.level > 0) {
+          const lvl = FEEDER_LEVELS[feeder.level];
+          feeder.startedAt = Date.now();
+          feeder.duration  = randRange(lvl.durationMin, lvl.durationMax);
+        } else {
+          feeder.startedAt = null;
+          feeder.duration  = null;
+        }
+      }
+    }
+
+    if (feeder.level > 0) {
+      if (!feeder.lastFoodSpawn || (Date.now() - feeder.lastFoodSpawn) >= 30_000) {
+        feeder.lastFoodSpawn = Date.now();
+        if (tank.id === state.activeTankId) spawnFoodFlakes();
+      }
+    }
+
+    const aerRegen    = AERATION_LEVELS[aer.level]?.passiveRegen    || 0;
+    const skimRegen   = SKIMMER_LEVELS[skim.level]?.passiveRegen    || 0;
+    const feederRegen = FEEDER_LEVELS[feeder.level]?.passiveRegen   || 0;
+    const corpseRate  = mb.ironReduceCorpse ? DEAD_DRAIN_PER * 0.5 : DEAD_DRAIN_PER;
+    tank.food        = Math.max(0, Math.min(getMaxFood(tank),        tank.food        - foodDrain * dtSec * mb.foodMult * mb.voidHungerMult + feederRegen * dtSec));
+    tank.oxygen      = Math.max(0, Math.min(getMaxOxygen(tank),      tank.oxygen      - OXYGEN_DRAIN_PER * aliveNonEgg.length * dtSec * mb.oxygenMult + (oxygenGain + aerRegen + BASE_OXYGEN_REGEN) * dtSec));
+    tank.cleanliness = Math.max(0, Math.min(getMaxCleanliness(tank), tank.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadTank.length) * dtSec * mb.cleanMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
+
+    if (debugMode && tank.id === state.activeTankId) {
+      if (debugLocks.food   !== 'normal') tank.food        = debugLocks.food   === '0' ? 0 : 100;
+      if (debugLocks.oxygen !== 'normal') tank.oxygen      = debugLocks.oxygen === '0' ? 0 : 100;
+      if (debugLocks.clean  !== 'normal') tank.cleanliness = debugLocks.clean  === '0' ? 0 : 100;
+      const _lockLS = (obj, key) => {
+        const lvl = parseInt(key);
+        obj.level = lvl;
+        if (lvl > 0) { obj.startedAt = Date.now(); obj.duration = 999_999_999; }
+        else         { obj.startedAt = null; obj.duration = null; }
+      };
+      if (debugLocks.aer    !== 'normal') _lockLS(aer,    debugLocks.aer);
+      if (debugLocks.skim   !== 'normal') _lockLS(skim,   debugLocks.skim);
+      if (debugLocks.feeder !== 'normal') _lockLS(feeder, debugLocks.feeder);
+    }
+
+    // --- Update each monkey in this tank ---
+    for (const m of aliveTank) {
+      updateMonkeyHealth(m, dtSec, tank);
+      if (!m.alive) continue;
+      updateMonkeyStage(m, tank);
+      if (!m.alive) continue;
+      if (m.stage === 'adult' && m.sex === 'F') {
+        updateMonkeyReproduction(m, aliveTank, tank);
+      }
+    }
+
+    // --- Process births for this tank ---
+    processBirths(aliveTank, tank);
+
+    // --- Auto-remove corpses after 5 minutes, penalise cleanliness ---
+    const CORPSE_TTL = 5 * 60 * 1000;
+    const now = Date.now();
+    const beforeLen = state.monkeys.filter(m => m.tankId === tank.id).length;
+    state.monkeys = state.monkeys.filter(m => {
+      if (m.tankId !== tank.id || m.alive || !m.diedAt) return true;
+      if (now - m.diedAt >= CORPSE_TTL) {
+        tank.cleanliness = Math.max(0, tank.cleanliness - 5);
+        return false;
+      }
+      return true;
+    });
+    const afterLen = state.monkeys.filter(m => m.tankId === tank.id).length;
+    if (afterLen < beforeLen) {
+      const removed = beforeLen - afterLen;
+      addLog(`🧹 Corpse${removed > 1 ? 's' : ''} decayed. -${removed * 5} cleanliness.`, null, tank.id);
     }
   }
 
-  const aerRegen    = AERATION_LEVELS[aer.level]?.passiveRegen    || 0;
-  const skimRegen   = SKIMMER_LEVELS[skim.level]?.passiveRegen    || 0;
-  const feederRegen = FEEDER_LEVELS[feeder.level]?.passiveRegen   || 0;
-  const corpseRate = mb.ironReduceCorpse ? DEAD_DRAIN_PER * 0.5 : DEAD_DRAIN_PER;
-  t.food        = Math.max(0, Math.min(getMaxFood(),        t.food        - foodDrain * dtSec * mb.foodMult * mb.voidHungerMult + feederRegen * dtSec));
-  t.oxygen      = Math.max(0, Math.min(getMaxOxygen(),      t.oxygen      - OXYGEN_DRAIN_PER * aliveNonEgg.length * dtSec * mb.oxygenMult + (oxygenGain + aerRegen + BASE_OXYGEN_REGEN) * dtSec));
-  t.cleanliness = Math.max(0, Math.min(getMaxCleanliness(), t.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadCount) * dtSec * mb.cleanMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
-  if (debugMode) {
-    if (debugLocks.food   !== 'normal') t.food        = debugLocks.food   === '0' ? 0 : 100;
-    if (debugLocks.oxygen !== 'normal') t.oxygen      = debugLocks.oxygen === '0' ? 0 : 100;
-    if (debugLocks.clean  !== 'normal') t.cleanliness = debugLocks.clean  === '0' ? 0 : 100;
-    const _lockLS = (obj, key) => {
-      const lvl = parseInt(key);
-      obj.level = lvl;
-      if (lvl > 0) { obj.startedAt = Date.now(); obj.duration = 999_999_999; }
-      else         { obj.startedAt = null; obj.duration = null; }
-    };
-    if (debugLocks.aer    !== 'normal') _lockLS(state.aeration, debugLocks.aer);
-    if (debugLocks.skim   !== 'normal') _lockLS(state.skimmer,  debugLocks.skim);
-    if (debugLocks.feeder !== 'normal') _lockLS(state.feeder,   debugLocks.feeder);
-  }
-
-  // --- Update each monkey ---
-  for (const m of alive) {
-    updateMonkeyHealth(m, dtSec, t);
-    if (!m.alive) continue;
-    updateMonkeyStage(m);
-    if (!m.alive) continue;
-    if (m.stage === 'adult' && m.sex === 'F') {
-      updateMonkeyReproduction(m, alive);
-    }
-  }
-
-  // --- Process births ---
-  processBirths(alive);
-
-  // --- Auto-remove corpses after 5 minutes, penalise cleanliness ---
-  const CORPSE_TTL = 5 * 60 * 1000;
-  const now = Date.now();
-  const before = state.monkeys.length;
-  state.monkeys = state.monkeys.filter(m => {
-    if (m.alive || !m.diedAt) return true;
-    if (now - m.diedAt >= CORPSE_TTL) {
-      t.cleanliness = Math.max(0, t.cleanliness - 5);
-      return false;
-    }
-    return true;
-  });
-  if (state.monkeys.length < before) {
-    addLog(`🧹 Corpse${before - state.monkeys.length > 1 ? 's' : ''} decayed. -${(before - state.monkeys.length) * 5} cleanliness.`);
-  }
-
-  // --- Update stats ---
+  // --- Update global stats ---
   const livePop = state.monkeys.filter(m => m.alive).length;
   if (livePop > state.stats.peakPopulation) state.stats.peakPopulation = livePop;
 
@@ -884,7 +928,7 @@ function updateMonkeyHealth(m, dtSec, t) {
   }
 }
 
-function updateMonkeyStage(m) {
+function updateMonkeyStage(m, tank) {
   const now = Date.now();
   const elapsed = now - m.stageStartTime;
   const effectiveElapsed = debugMode ? elapsed * debugSpeed : elapsed;
@@ -898,14 +942,14 @@ function updateMonkeyStage(m) {
     m.stageDuration = randRange(...BABY_GROW) / stats.growthSpeed;
     checkDexDiscovery(m);
     addXP(5);
-    addLog(`🐠 ${m.name} hatched!`, '🐠 hatched!');
+    addLog(`🐠 ${m.name} hatched!`, '🐠 hatched!', m.tankId);
   } else if (m.stage === 'baby' && effectiveElapsed >= dur) {
     if (Math.random() < 0.2) createMolt(m, 'baby');
     m.stage = 'juvenile';
     m.stageStartTime = now;
     m.stageDuration = randRange(...JUV_GROW) / stats.growthSpeed;
     addXP(10);
-    addLog(`🐟 ${m.name} grew into a juvenile!`, '🐟 grew into a juvenile!');
+    addLog(`🐟 ${m.name} grew into a juvenile!`, '🐟 grew into a juvenile!', m.tankId);
   } else if (m.stage === 'juvenile' && effectiveElapsed >= dur) {
     if (Math.random() < 0.2) createMolt(m, 'juvenile');
     m.stage = 'adult';
@@ -913,15 +957,15 @@ function updateMonkeyStage(m) {
     const mb = getMasteryBonuses();
     m.stageDuration = randRange(...ADULT_LIFE) * stats.lifeMult * mb.lifespanMult;
     addXP(20);
-    addLog(`🦐 ${m.name} is now an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, `🦐 became an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`);
+    addLog(`🦐 ${m.name} is now an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, `🦐 became an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, m.tankId);
   } else if (m.stage === 'adult' && effectiveElapsed >= dur) {
     killMonkey(m, 'old age');
   }
 }
 
-function updateMonkeyReproduction(female, aliveMonkeys) {
+function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   if (female.pregnant) return;
-  if (fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation) return;
+  if (fpsStressPopulation !== null && aliveMonkeys.filter(m => m.alive).length >= fpsStressPopulation) return;
   const now = Date.now();
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
@@ -937,10 +981,10 @@ function updateMonkeyReproduction(female, aliveMonkeys) {
   female.lastMatedAt = now;
   state.stats.totalMatingEvents++;
   addXP(5);
-  addLog(`💕 ${female.name} & ${mate.name} mated!`, '💕 mated!');
+  addLog(`💕 ${female.name} & ${mate.name} mated!`, '💕 mated!', female.tankId);
 }
 
-function processBirths(aliveMonkeys) {
+function processBirths(aliveMonkeys, tank) {
   const now = Date.now();
   for (const m of aliveMonkeys) {
     if (!m.pregnant || !m.pregnantSince) continue;
@@ -954,20 +998,20 @@ function processBirths(aliveMonkeys) {
 
     const father = state.monkeys.find(mp => mp.id === m.mateId);
 
-    // Glowing Flakes: boost mutations, deal damage to parents
-    const usedFlakes = state.glowingFlakesActive;
+    // Glowing Flakes: boost mutations, deal damage to parents (per-tank)
+    const usedFlakes = tank.glowingFlakesActive;
     if (usedFlakes) {
       m.health = Math.max(1, m.health - 20);
       if (father?.alive) father.health = Math.max(1, father.health - 10);
-      state.glowingFlakesActive = false;
+      tank.glowingFlakesActive = false;
     }
 
     const mb = getMasteryBonuses();
     const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
     for (let i = 0; i < count; i++) {
       if (fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation) break;
-      const dna = inheritGenes(m, father || m);
-      const baby = createMonkey({ generation: gen, dna });
+      const dna = inheritGenes(m, father || m, usedFlakes);
+      const baby = createMonkey({ generation: gen, dna, tankId: tank.id });
       // Build log tag: phenotype + expressed functional traits
       const phenotype = resolveColorPhenotype(dna.body_color);
       const def = PHENOTYPE_DEFS[phenotype];
@@ -985,9 +1029,9 @@ function processBirths(aliveMonkeys) {
       if (hasDominant(dna.filt, 'F')) traits.push('Filter Feeder');
       if (traits.length) tag += '+' + traits.join('+');
       addXP(10);
-      addLog(`🥚 ${m.name} laid egg: ${baby.name} [${tag}]!`, '🥚 egg laid!');
+      addLog(`🥚 ${m.name} laid egg: ${baby.name} [${tag}]!`, '🥚 egg laid!', tank.id);
     }
-    if (usedFlakes) addLog('✨ Glowing Flakes boosted mutation rates for this birth! (parents took damage)');
+    if (usedFlakes) addLog('✨ Glowing Flakes boosted mutation rates for this birth! (parents took damage)', null, tank.id);
   }
 }
 
@@ -1220,10 +1264,10 @@ function renderDebugPanel() {
   document.getElementById('debug-speed-label').textContent = `${debugSpeed}×`;
 
   const now = Date.now();
-  const t = state.tank;
+  const t = activeTank();
   const rows = [];
 
-  if (t.purifying && !t.waterPure) {
+  if (t && t.purifying && !t.waterPure) {
     const eff = (now - t.purifyStartTime) * debugSpeed;
     const rem = (t.purifyDuration - eff) / debugSpeed;
     rows.push({ rem, next: '💧 Water pure — eggs unlock' });
@@ -1405,6 +1449,8 @@ function buildPopCard(m, now, hasMagnifier) {
     ? (now - m.bornAt) * (debugMode ? debugSpeed : 1)
     : (m.ageAtDeath ?? (m.diedAt - m.bornAt));
 
+  const tankBadge = state.tanks.length > 1
+    ? `<span class="pop-tank-badge">T${(m.tankId ?? 0) + 1}</span>` : '';
   return `<div class="pop-card ${m.alive ? m.stage : 'dead'}">
     ${pregTimerStr ? `<span class="pop-preg" id="pop-preg-${m.id}">🤰 ${pregTimerStr}</span>` : ''}
     <span class="pop-card-emoji" ${emojiStyle}>${displayEmoji}</span>
@@ -1412,6 +1458,7 @@ function buildPopCard(m, now, hasMagnifier) {
     <div class="pop-card-badges">
       <span class="pop-stage">${stageLabel}</span>
       <span class="pop-gen">Gen ${m.generation}</span>
+      ${tankBadge}
     </div>
     <span class="pop-age" id="pop-age-${m.id}">${fmtAge(ageMs)}</span>
     <div class="pop-card-health">❤ <span class="pop-bar" id="pop-bar-${m.id}">${healthBar}</span> <span class="pop-hp" id="pop-hp-${m.id}">${Math.round(m.health)}/${stats.maxHealth}</span></div>
@@ -1532,9 +1579,10 @@ function renderLifeSupport() {
 
   const now = Date.now();
   const currency = state.currency || 0;
-  const aer    = state.aeration || { level: 0, startedAt: null, duration: null };
-  const skim   = state.skimmer  || { level: 0, startedAt: null, duration: null };
-  const feeder = state.feeder   || { level: 0, startedAt: null, duration: null };
+  const tank   = activeTank();
+  const aer    = tank.aeration;
+  const skim   = tank.skimmer;
+  const feeder = tank.feeder;
   const content = document.getElementById('life-support-content');
 
   // Rebuild structure only when levels change (preserves button DOM nodes between frames)
@@ -1548,48 +1596,51 @@ function renderLifeSupport() {
     _lsFeederLevel = feeder.level;
 
     document.getElementById('ls-btn-aer').addEventListener('click', () => {
-      const nextLevel = state.aeration.level + 1;
+      const t = activeTank();
+      const nextLevel = t.aeration.level + 1;
       if (nextLevel > 5) return;
       const cost = AERATION_LEVELS[nextLevel].upgradeCost;
       if ((state.currency || 0) < cost) return;
       state.currency -= cost;
-      state.aeration.level = nextLevel;
+      t.aeration.level = nextLevel;
       const lvl = AERATION_LEVELS[nextLevel];
-      state.aeration.startedAt = Date.now();
-      state.aeration.duration  = randRange(lvl.durationMin, lvl.durationMax);
+      t.aeration.startedAt = Date.now();
+      t.aeration.duration  = randRange(lvl.durationMin, lvl.durationMax);
       generateBubbles(AERATION_BUBBLE_COUNTS[nextLevel]);
       addXP(10);
-      addLog(`💨 Aeration upgraded to ${lvl.name}!`);
+      addLog(`💨 Aeration upgraded to ${lvl.name}!`, null, t.id);
       addNotification(`💨 ${lvl.name} aeration active!`);
     });
 
     document.getElementById('ls-btn-skim').addEventListener('click', () => {
-      const nextLevel = state.skimmer.level + 1;
+      const t = activeTank();
+      const nextLevel = t.skimmer.level + 1;
       if (nextLevel > 5) return;
       const cost = SKIMMER_LEVELS[nextLevel].upgradeCost;
       if ((state.currency || 0) < cost) return;
       state.currency -= cost;
-      state.skimmer.level = nextLevel;
+      t.skimmer.level = nextLevel;
       const lvl = SKIMMER_LEVELS[nextLevel];
-      state.skimmer.startedAt = Date.now();
-      state.skimmer.duration  = randRange(lvl.durationMin, lvl.durationMax);
+      t.skimmer.startedAt = Date.now();
+      t.skimmer.duration  = randRange(lvl.durationMin, lvl.durationMax);
       addXP(10);
-      addLog(`🧹 Skimmer upgraded to ${lvl.name}!`);
+      addLog(`🧹 Skimmer upgraded to ${lvl.name}!`, null, t.id);
       addNotification(`🧹 ${lvl.name} skimmer active!`);
     });
 
     document.getElementById('ls-btn-feeder').addEventListener('click', () => {
-      const nextLevel = state.feeder.level + 1;
+      const t = activeTank();
+      const nextLevel = t.feeder.level + 1;
       if (nextLevel > 5) return;
       const cost = FEEDER_LEVELS[nextLevel].upgradeCost;
       if ((state.currency || 0) < cost) return;
       state.currency -= cost;
-      state.feeder.level = nextLevel;
+      t.feeder.level = nextLevel;
       const lvl = FEEDER_LEVELS[nextLevel];
-      state.feeder.startedAt = Date.now();
-      state.feeder.duration  = randRange(lvl.durationMin, lvl.durationMax);
+      t.feeder.startedAt = Date.now();
+      t.feeder.duration  = randRange(lvl.durationMin, lvl.durationMax);
       addXP(10);
-      addLog(`🍽️ Feeder upgraded to ${lvl.name}!`);
+      addLog(`🍽️ Feeder upgraded to ${lvl.name}!`, null, t.id);
       addNotification(`🍽️ ${lvl.name} feeder active!`);
     });
   }
@@ -1622,17 +1673,21 @@ function renderMolts() {
   if (!state.molts) state.molts = [];
 
   const now = Date.now();
+  const activeTankId = state.activeTankId;
 
-  // Remove DOM elements for molts no longer in state
-  const moltIds = new Set(state.molts.map(mo => mo.id));
+  // Remove DOM elements for molts no longer in state or on a different tank
+  const activeMoltIds = new Set(
+    state.molts.filter(mo => mo.tankId === activeTankId).map(mo => mo.id)
+  );
   for (const id of Object.keys(moltEls)) {
-    if (!moltIds.has(Number(id))) {
+    if (!activeMoltIds.has(Number(id))) {
       moltEls[id].remove();
       delete moltEls[id];
     }
   }
 
   for (const molt of state.molts) {
+    if (molt.tankId !== activeTankId) continue;
     const age = now - molt.createdAt;
 
     // Create element on first render
@@ -1674,10 +1729,12 @@ function renderMolts() {
     if (age >= 10000) {
       el.classList.add('molt-dissolving');
       el.classList.remove('molt-bobbing');
+      const moltTankId = molt.tankId;
       setTimeout(() => {
         state.molts = state.molts.filter(mo => mo.id !== molt.id);
-        state.tank.cleanliness = Math.max(0, state.tank.cleanliness - 2);
-        addLog(`🌊 A shed skin dissolved, dirtying the water.`);
+        const moltTank = state.tanks.find(t => t.id === moltTankId) || activeTank();
+        moltTank.cleanliness = Math.max(0, moltTank.cleanliness - 2);
+        addLog(`🌊 A shed skin dissolved, dirtying the water.`, null, moltTankId);
       }, 1500);
     }
   }
@@ -1713,6 +1770,7 @@ function renderAll() {
   }
 
   renderHeader();
+  renderTankSelector();
   renderTankLevel();
   renderSetupSection();
   renderGauges();
@@ -1731,7 +1789,7 @@ function renderAll() {
 }
 
 function renderTankLevel() {
-  const xp  = state.tankXP || 0;
+  const xp  = activeTank()?.tankXP || 0;
   const lvl = xpToLevel(xp);
   const cur = xpForLevel(lvl);
   const nxt = xpForLevel(lvl + 1);
@@ -1751,7 +1809,7 @@ function renderHeader() {
 }
 
 function renderSetupSection() {
-  const t = state.tank;
+  const t = activeTank();
   const overlay    = document.getElementById('tank-overlay');
   const overlayBtn = document.getElementById('overlay-btn-water');
   const countdown  = document.getElementById('purify-countdown');
@@ -1806,11 +1864,11 @@ function renderSetupSection() {
 }
 
 function renderGauges() {
-  const t = state.tank;
+  const t = activeTank();
   const pairs = [
-    ['food-bar',   'food-val',   t.food, getMaxFood()],
-    ['oxygen-bar', 'oxygen-val', t.oxygen, getMaxOxygen()],
-    ['clean-bar',  'clean-val',  t.cleanliness, getMaxCleanliness()],
+    ['food-bar',   'food-val',   t.food, getMaxFood(t)],
+    ['oxygen-bar', 'oxygen-val', t.oxygen, getMaxOxygen(t)],
+    ['clean-bar',  'clean-val',  t.cleanliness, getMaxCleanliness(t)],
   ];
   for (const [barId, valId, val, max] of pairs) {
     const bar = document.getElementById(barId);
@@ -1833,7 +1891,7 @@ function renderGauges() {
 }
 
 function renderPopulationCounts() {
-  const alive = state.monkeys.filter(m => m.alive);
+  const alive = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId);
   document.getElementById('cnt-eggs').textContent      = alive.filter(m => m.stage === 'egg').length;
   document.getElementById('cnt-babies').textContent    = alive.filter(m => m.stage === 'baby').length;
   document.getElementById('cnt-juveniles').textContent = alive.filter(m => m.stage === 'juvenile').length;
@@ -1860,16 +1918,19 @@ function renderMonkeys() {
   const W = tankRect.width  || 560;
   const H = tankRect.height || 490;
 
-  // Remove DOM els for monkeys no longer in state
-  const stateIds = new Set(state.monkeys.map(m => m.id));
+  // Remove DOM els for monkeys no longer in state or on a different tank
+  const activeMonkeyIds = new Set(
+    state.monkeys.filter(m => m.tankId === state.activeTankId).map(m => m.id)
+  );
   for (const id of Object.keys(monkeyEls)) {
-    if (!stateIds.has(Number(id))) {
+    if (!activeMonkeyIds.has(Number(id))) {
       monkeyEls[id].remove();
       delete monkeyEls[id];
     }
   }
 
   for (const m of state.monkeys) {
+    if (m.tankId !== state.activeTankId) continue;
     let el = monkeyEls[m.id];
     if (!el) {
       el = document.createElement('div');
@@ -2051,8 +2112,8 @@ function renderEventLog() {
 function renderStatusBar() {
   const bar = document.getElementById('statusbar');
   const msg = document.getElementById('status-msg');
-  const t = state.tank;
-  const alive = state.monkeys.filter(m => m.alive);
+  const t = activeTank();
+  const alive = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId);
 
   bar.className = '';
 
@@ -2141,7 +2202,7 @@ function spawnFoodFlakes() {
 
 function useLifeBooster() {
   if (state.inventory.lifeBooster <= 0) return;
-  const adults = state.monkeys.filter(m => m.alive && m.stage === 'adult');
+  const adults = state.monkeys.filter(m => m.alive && m.stage === 'adult' && m.tankId === state.activeTankId);
   if (adults.length === 0) {
     addNotification('🧪 No adults to boost!');
     return;
@@ -2157,8 +2218,8 @@ function useLifeBooster() {
 
 function useGlowingFlakes() {
   if (state.inventory.glowingFlakes <= 0) return;
-  if (!state.tank.eggsAdded) { addNotification('✨ Release eggs first!'); return; }
-  state.glowingFlakesActive = true;
+  if (!activeTank().eggsAdded) { addNotification('✨ Release eggs first!'); return; }
+  activeTank().glowingFlakesActive = true;
   state.inventory.glowingFlakes--;
   addXP(5);
   addLog('✨ Glowing Flakes activated! Next birth has 10× mutation rates. (parents will take damage)');
@@ -2175,12 +2236,12 @@ function toggleMagnifyingGlass() {
 
 function useBoosterEggPack() {
   if (state.inventory.boosterEggPack <= 0) return;
-  if (!state.tank.eggsAdded) {
+  if (!activeTank().eggsAdded) {
     addNotification('🥚 Release eggs first!');
     return;
   }
   const count = 5 + Math.floor(Math.random() * 4); // 5-8 eggs
-  for (let i = 0; i < count; i++) createMonkey({ stage: 'egg', generation: state.stats.totalGenerations });
+  for (let i = 0; i < count; i++) createMonkey({ stage: 'egg', generation: state.stats.totalGenerations, tankId: state.activeTankId });
   state.inventory.boosterEggPack--;
   addXP(5);
   addLog(`🥚 Booster Egg Pack used! ${count} new eggs added to the tank`);
@@ -2190,7 +2251,7 @@ function useBoosterEggPack() {
 
 function renderInventory() {
   const inv = state.inventory;
-  const hasLife = state.tank.eggsAdded;
+  const hasLife = activeTank().eggsAdded;
 
   document.getElementById('currency-balance').textContent = `£${(state.currency || 0).toLocaleString()}`;
 
@@ -2202,7 +2263,7 @@ function renderInventory() {
   document.getElementById('inv-glowing-flakes-cnt').textContent = inv.glowingFlakes;
   document.getElementById('btn-use-glowing-flakes').disabled = inv.glowingFlakes <= 0 || !hasLife;
   const flakesBadge = document.getElementById('glowing-flakes-active-badge');
-  if (flakesBadge) flakesBadge.style.display = state.glowingFlakesActive ? '' : 'none';
+  if (flakesBadge) flakesBadge.style.display = activeTank().glowingFlakesActive ? '' : 'none';
 
   document.getElementById('inv-magnifying-glass-cnt').textContent = inv.magnifyingGlass;
   const mgBtn = document.getElementById('btn-toggle-magnifying-glass');
@@ -2233,26 +2294,28 @@ function spawnBurstBubbles() {
 // ─────────────────────────────────────────────
 
 function addWater() {
-  if (state.tank.waterAdded) return;
-  state.tank.waterAdded = true;
-  state.tank.purifying = true;
-  state.tank.purifyStartTime = Date.now();
-  addLog('💧 Water packet added. Purifying...');
+  const t = activeTank();
+  if (t.waterAdded) return;
+  t.waterAdded = true;
+  t.purifying = true;
+  t.purifyStartTime = Date.now();
+  addLog('💧 Water packet added. Purifying...', null, t.id);
   addNotification('💧 Purification started! (~2 min)');
   saveState();
 }
 
 function releaseEggs() {
-  if (!state.tank.waterPure || state.tank.eggsAdded) return;
-  state.tank.eggsAdded = true;
+  const t = activeTank();
+  if (!t.waterPure || t.eggsAdded) return;
+  t.eggsAdded = true;
   state.gameStarted = true;
   state.lastTick = Date.now();
 
   const count = 3 + Math.floor(Math.random() * 3); // 3-5 eggs
   for (let i = 0; i < count; i++) {
-    createMonkey({ stage: 'egg', generation: 1 });
+    createMonkey({ stage: 'egg', generation: 1, tankId: t.id });
   }
-  addLog(`🥚 Released ${count} sea monkey eggs into the tank!`);
+  addLog(`🥚 Released ${count} sea monkey eggs into the tank!`, null, t.id);
   addNotification(`🥚 ${count} eggs released!`);
   saveState();
 }
@@ -2385,35 +2448,44 @@ function setupEventListeners() {
     document.getElementById(id).addEventListener('click', () => switchTankTab(id));
   });
 
+  document.getElementById('tank-selector-bar').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tank-id]');
+    if (btn) { switchActiveTank(Number(btn.dataset.tankId)); return; }
+    if (e.target.id === 'btn-buy-tank') buyTank();
+  });
+
   document.getElementById('btn-feed').addEventListener('click', () => {
+    const t = activeTank();
     const mb = getMasteryBonuses();
     const feedAmt = ACTION_FEED_BASE + mb.feedBonus;
-    state.tank.food = Math.min(getMaxFood(), state.tank.food + feedAmt);
+    t.food = Math.min(getMaxFood(t), t.food + feedAmt);
     addXP(1);
-    addLog(`🍔 Tank fed (+${feedAmt} food)`);
+    addLog(`🍔 Tank fed (+${feedAmt} food)`, null, t.id);
     addNotification('🍔 Fed!');
     spawnFoodFlakes();
     saveState();
   });
 
   document.getElementById('btn-aerate').addEventListener('click', () => {
-    state.tank.oxygen = Math.min(getMaxOxygen(), state.tank.oxygen + ACTION_AERATE_AMT);
+    const t = activeTank();
+    t.oxygen = Math.min(getMaxOxygen(t), t.oxygen + ACTION_AERATE_AMT);
     addXP(1);
-    addLog('💨 Tank aerated (+50 oxygen)');
+    addLog('💨 Tank aerated (+50 oxygen)', null, t.id);
     addNotification('💨 Aerated!');
     spawnBurstBubbles();
     saveState();
   });
 
   document.getElementById('btn-clean').addEventListener('click', () => {
-    state.tank.cleanliness = Math.min(getMaxCleanliness(), state.tank.cleanliness + ACTION_CLEAN_AMT);
-    const corpses = state.monkeys.filter(m => !m.alive);
-    state.monkeys = state.monkeys.filter(m => m.alive);
+    const t = activeTank();
+    t.cleanliness = Math.min(getMaxCleanliness(t), t.cleanliness + ACTION_CLEAN_AMT);
+    const corpses = state.monkeys.filter(m => !m.alive && m.tankId === state.activeTankId);
+    state.monkeys = state.monkeys.filter(m => m.alive || m.tankId !== state.activeTankId);
     addXP(1);
     if (corpses.length > 0) {
-      addLog(`🧹 Tank cleaned — removed ${corpses.length} dead sea monkey${corpses.length > 1 ? 's' : ''}`);
+      addLog(`🧹 Tank cleaned — removed ${corpses.length} dead sea monkey${corpses.length > 1 ? 's' : ''}`, null, t.id);
     } else {
-      addLog('🧹 Tank cleaned (+40 cleanliness)');
+      addLog('🧹 Tank cleaned (+40 cleanliness)', null, t.id);
     }
     addNotification('🧹 Cleaned!');
     saveState();
@@ -2421,7 +2493,45 @@ function setupEventListeners() {
 }
 
 // ─────────────────────────────────────────────
-// 14. BUBBLE GENERATION + INIT
+// 14. TANK SELECTOR + MULTI-TANK ACTIONS
+// ─────────────────────────────────────────────
+
+function renderTankSelector() {
+  const bar = document.getElementById('tank-selector-bar');
+  if (!bar) return;
+  const btns = state.tanks.map(t =>
+    `<button class="tank-sel-btn${t.id === state.activeTankId ? ' active' : ''}" data-tank-id="${t.id}">${t.name}</button>`
+  ).join('');
+  const buyDisabled = state.currency < 1000 ? ' disabled' : '';
+  const buyBtn = `<button class="tank-sel-btn tank-buy-btn"${buyDisabled} id="btn-buy-tank">＋ Tank (£1,000)</button>`;
+  bar.innerHTML = btns + buyBtn;
+}
+
+function switchActiveTank(id) {
+  state.activeTankId = id;
+  _lsAerLevel = -1; _lsSkimLevel = -1; _lsFeederLevel = -1;
+  _popSignature = '';
+  generateBubbles();
+  saveState();
+}
+
+function buyTank() {
+  if (state.currency < 1000) return;
+  state.currency -= 1000;
+  const newId = state.tanks.length;
+  state.tanks.push({
+    ...JSON.parse(JSON.stringify(DEFAULT_TANK)),
+    id: newId,
+    name: `Tank ${newId + 1}`,
+    tankCreatedAt: Date.now(),
+  });
+  switchActiveTank(newId);
+  addLog(`💰 Purchased Tank ${newId + 1}!`);
+  saveState();
+}
+
+// ─────────────────────────────────────────────
+// 15. BUBBLE GENERATION + INIT
 // ─────────────────────────────────────────────
 
 const AERATION_BUBBLE_COUNTS = [20, 40, 60, 80, 100, 120];
@@ -2450,7 +2560,7 @@ function updateAirstoneVisuals(tank, level) {
 function generateBubbles(count) {
   const tank = document.getElementById('tank');
   tank.querySelectorAll('.bubble').forEach(b => b.remove());
-  const level = state?.aeration?.level ?? 0;
+  const level = activeTank()?.aeration?.level ?? 0;
   const n = count ?? AERATION_BUBBLE_COUNTS[level] ?? 5;
 
   updateAirstoneVisuals(tank, level);
@@ -2518,7 +2628,7 @@ function renderTimerStats() {
 
 function initGame() {
   state = loadState();
-  if (!state.tankCreatedAt) state.tankCreatedAt = Date.now();
+  state.tanks.forEach(t => { if (!t.tankCreatedAt) t.tankCreatedAt = Date.now(); });
   if (state.fpsStressPop != null) {
     fpsStressPopulation = state.fpsStressPop;
     const el = document.getElementById('fps-stress-pop');
@@ -2535,7 +2645,7 @@ function initGame() {
     const now = Date.now();
     const dt = now - (state.lastTick || now);
     state.lastTick = now;
-    if (state.tank.eggsAdded || state.tank.purifying) {
+    if (state.tanks.some(t => t.eggsAdded || t.purifying)) {
       gameTick(dt);
     }
   }, 1000);

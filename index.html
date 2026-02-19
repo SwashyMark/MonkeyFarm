@@ -444,6 +444,7 @@
       .pop-card-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
       .pop-stage { background: #0a3a5c; border-radius: 3px; padding: 1px 5px; font-size: 9px; color: #7fd8ff; }
       .pop-gen   { font-size: 9px; color: #5599bb; }
+      .pop-tank-badge { font-size: 9px; color: #44cc88; background: rgba(0,40,20,0.7); border-radius: 3px; padding: 1px 4px; }
       .pop-card-health { font-size: 9px; color: #88bbcc; font-variant-numeric: tabular-nums; width: 100%; }
       .pop-bar   { color: #44cc77; letter-spacing: -1px; }
       .pop-hp    { color: #7fd8ff; }
@@ -545,6 +546,23 @@
       .ms-progress-bar { height: 4px; background: #0a2a40; border-radius: 2px; margin-top: 2px; }
       .ms-progress-fill { height: 100%; background: #1a7faa; border-radius: 2px; }
       .ms-progress-label { font-size: 9px; color: #5599bb; }
+
+      /* ── TANK SELECTOR BAR ── */
+      #tank-selector-bar {
+        position: absolute; top: 0; right: 0;
+        z-index: 11; display: flex; gap: 2px; align-items: flex-end;
+      }
+      .tank-sel-btn {
+        background: rgba(4,16,32,0.85); border: 1px solid #1a3a5c;
+        border-bottom: none;
+        padding: 5px 12px; font-size: 11px; color: #5599bb;
+        cursor: pointer; transition: background 0.15s, color 0.15s;
+      }
+      .tank-sel-btn:hover:not(:disabled) { background: rgba(13,33,55,0.9); color: #aad4ee; }
+      .tank-sel-btn.active { background: #0d2137; color: #7fd8ff; }
+      .tank-buy-btn { color: #44cc88; border-color: #1a5a3c; }
+      .tank-buy-btn:hover:not(:disabled) { background: rgba(4,20,12,0.95); color: #66ffaa; }
+      .tank-buy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
       /* ── TANK TABS ── */
       #tank-tab-bar {
@@ -1001,6 +1019,7 @@
         <!-- 60%: lone tall centerpiece seaweed -->
         <div class="sw" style="left:60%;  width:4px;  height:178px; background:linear-gradient(to top,#0a3d18,#1a7a34); animation:sway-l 5.2s ease-in-out infinite; animation-delay:-3.1s;"></div>
       </div>
+      <div id="tank-selector-bar"></div>
       <div id="tank-tab-bar">
         <button class="tank-tab active" id="tab-tank">🌊 Tank</button>
         <button class="tank-tab" id="tab-life-support">⚙️ Life Support</button>
