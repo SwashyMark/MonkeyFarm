@@ -7,12 +7,13 @@ const fs = require('node:fs')
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
 const UPDATE_FILES = ['main.js', 'renderer.js', 'index.html', 'preload.js', 'package.json']
-const LOG_FILE = path.join(__dirname, 'updater.log')
-
 function ulog(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`
   console.log(msg)
-  try { fs.appendFileSync(LOG_FILE, line, 'utf8') } catch (_) {}
+  try {
+    const logFile = path.join(app.getPath('userData'), 'updater.log')
+    fs.appendFileSync(logFile, line, 'utf8')
+  } catch (_) {}
 }
 
 function fetchText(url) {
