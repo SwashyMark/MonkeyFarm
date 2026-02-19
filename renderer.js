@@ -287,15 +287,21 @@ function addXP(amount) {
   }
 }
 
+function alleleName(geneId, code) {
+  const gene = GENE_DATA.find(g => g.id === geneId);
+  if (!gene) return code;
+  const allele = gene.alleles.find(a => a.code === code);
+  return allele ? allele.name : code;
+}
+
 function genotypeString(dna) {
   if (!dna) return '';
-  const fmt = pair => pair.join('/');
-  return `Body: ${fmt(dna.body_color)} | Tail: ${fmt(dna.tail_shape)} | Met: ${fmt(dna.metabolism)} | Con: ${fmt(dna.constitution)} | Lon: ${fmt(dna.longevity)} | Filt: ${fmt(dna.filt)}`;
+  const fmt = (geneId, pair) => pair.map(c => alleleName(geneId, c)).join('/');
+  return `Body: ${fmt('body_color', dna.body_color)} | Tail: ${fmt('tail_shape', dna.tail_shape)} | Met: ${fmt('metabolism', dna.metabolism)} | Con: ${fmt('constitution', dna.constitution)} | Lon: ${fmt('longevity', dna.longevity)} | Filt: ${fmt('filt', dna.filt)}`;
 }
 
 function genotypeCardHTML(dna) {
   if (!dna) return '';
-  const fmt = pair => pair.join('/');
   const genes = [
     { key: 'body_color',   emoji: '🎨', title: 'Body Color — determines the appearance and color phenotype of the sea monkey' },
     { key: 'tail_shape',   emoji: '🐠', title: 'Tail Shape — affects the form of the tail fin (standard, double, fan, etc.)' },
@@ -304,9 +310,10 @@ function genotypeCardHTML(dna) {
     { key: 'longevity',    emoji: '⏳', title: 'Longevity — affects natural lifespan and how quickly the sea monkey ages' },
     { key: 'filt',         emoji: '💧', title: 'Filter Feeding — ability to absorb nutrients directly from the water' },
   ];
-  const rows = genes.map(g =>
-    `<tr title="${g.title}"><td class="gene-emoji">${g.emoji}</td><td class="gene-alleles">${fmt(dna[g.key])}</td></tr>`
-  ).join('');
+  const rows = genes.map(g => {
+    const display = dna[g.key].map(c => alleleName(g.key, c)).join(' / ');
+    return `<tr title="${g.title}"><td class="gene-emoji">${g.emoji}</td><td class="gene-alleles">${display}</td></tr>`;
+  }).join('');
   return `<table class="gene-table">${rows}</table>`;
 }
 
