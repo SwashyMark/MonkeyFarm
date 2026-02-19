@@ -78,6 +78,9 @@
       .hstat { display: flex; flex-direction: column; align-items: center; }
       .hstat-label { color: #5599bb; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
       .hstat-value { color: #7fd8ff; font-weight: bold; font-size: 14px; }
+      .stat-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 12px; }
+      .stat-label { color: #5599bb; }
+      .stat-value { color: #7fd8ff; font-weight: bold; }
 
       /* ── SIDEBAR ── */
       #sidebar {
@@ -783,6 +786,14 @@
             <div id="tank-xp-label">0 / 100 XP</div>
           </div>
         </div>
+      </div>
+
+      <!-- Timer stats -->
+      <div class="panel" id="timer-stats-panel">
+        <div class="panel-title">Timers</div>
+        <div class="stat-row"><span class="stat-label">Tank Age</span><span class="stat-value" id="stat-tank-age">—</span></div>
+        <div class="stat-row"><span class="stat-label">Play Time</span><span class="stat-value" id="stat-play-time">—</span></div>
+        <div class="stat-row"><span class="stat-label">Offline Time</span><span class="stat-value" id="stat-offline-time">—</span></div>
       </div>
 
       <!-- Tank conditions -->

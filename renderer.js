@@ -317,6 +317,9 @@ const DEFAULT_STATE = {
   version: 3,
   lastSave: null,
   lastTick: null,
+  tankCreatedAt: null,
+  playTimeMs: 0,
+  totalOfflineMs: 0,
   gameStarted: false,
   tankXP: 0,
   tank: {
@@ -671,6 +674,7 @@ function inheritGenes(parentA, parentB) {
 function gameTick(dtMs) {
   const dtSec = dtMs / 1000;
   const t = state.tank;
+  state.playTimeMs = (state.playTimeMs || 0) + dtMs;
 
   // --- Purification countdown ---
   if (t.purifying && !t.waterPure) {
@@ -1095,6 +1099,7 @@ function applyOfflineProgress() {
   let offlineMs = Date.now() - state.lastTick;
   if (offlineMs <= 1000) return;
   offlineMs = Math.min(offlineMs, OFFLINE_CAP_MS);
+  state.totalOfflineMs = (state.totalOfflineMs || 0) + offlineMs;
 
   addLog(`⏰ Applied ${Math.round(offlineMs / 60000)} min of offline progress`);
 
@@ -1604,6 +1609,7 @@ function renderAll() {
   renderEventLog();
   renderStatusBar();
   renderNotifications();
+  renderTimerStats();
 }
 
 function renderTankLevel() {
@@ -2302,8 +2308,29 @@ function generateBubbles(count) {
   }
 }
 
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return '—';
+  const totalSec = Math.floor(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function renderTimerStats() {
+  const now = Date.now();
+  document.getElementById('stat-tank-age').textContent   = fmtDuration(state.tankCreatedAt ? now - state.tankCreatedAt : 0);
+  document.getElementById('stat-play-time').textContent  = fmtDuration(state.playTimeMs || 0);
+  document.getElementById('stat-offline-time').textContent = fmtDuration(state.totalOfflineMs || 0);
+}
+
 function initGame() {
   state = loadState();
+  if (!state.tankCreatedAt) state.tankCreatedAt = Date.now();
   applyOfflineProgress();
   state.lastTick = Date.now();
 
