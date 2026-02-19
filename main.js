@@ -2,11 +2,13 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const path = require('node:path')
 const https = require('node:https')
-const fs = require('node:fs') 
+const fs = require('node:fs')
 
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
 const UPDATE_FILES = ['main.js', 'renderer.js', 'index.html', 'preload.js', 'package.json']
+const PENDING_DIR = path.join(__dirname, '_pending_update')
+
 function ulog(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`
   console.log(msg)
@@ -41,6 +43,25 @@ function semverGt(a, b) {
   return false
 }
 
+// Called at startup: if a pending update was staged, apply it now and relaunch.
+function applyPendingUpdate() {
+  if (!fs.existsSync(PENDING_DIR)) return false
+  try {
+    ulog('[updater] Applying pending update...')
+    for (const file of fs.readdirSync(PENDING_DIR)) {
+      fs.copyFileSync(path.join(PENDING_DIR, file), path.join(__dirname, file))
+      ulog(`[updater] Applied: ${file}`)
+    }
+    fs.rmSync(PENDING_DIR, { recursive: true, force: true })
+    ulog('[updater] Pending update applied, relaunching...')
+    return true
+  } catch (err) {
+    ulog(`[updater] Failed to apply pending update: ${err.message}`)
+    ulog(err.stack)
+    return false
+  }
+}
+
 async function checkForUpdates() {
   try {
     const bust = `?t=${Date.now()}`
@@ -50,11 +71,12 @@ async function checkForUpdates() {
     if (!semverGt(remote.version, local)) return
 
     ulog(`[updater] Update available: ${local} → ${remote.version}`)
-    ulog('[updater] Downloading files...')
+    ulog('[updater] Downloading to staging folder...')
+    fs.mkdirSync(PENDING_DIR, { recursive: true })
     for (const file of UPDATE_FILES) {
       const content = await fetchText(`${REPO_RAW}/${file}${bust}`)
-      fs.writeFileSync(path.join(__dirname, file), content, 'utf8')
-      ulog(`[updater] Downloaded: ${file}`)
+      fs.writeFileSync(path.join(PENDING_DIR, file), content, 'utf8')
+      ulog(`[updater] Staged: ${file}`)
     }
 
     ulog('[updater] Showing restart dialog...')
@@ -76,7 +98,7 @@ async function checkForUpdates() {
     ulog(err.stack)
   }
 }
-// ─────────────────────────��───────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
 
 const UPDATE_INTERVAL_MS = 60 * 1000
 let nextCheckTime = Date.now()
@@ -105,6 +127,13 @@ function createWindow () {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Apply any update that was staged during the previous session.
+  if (applyPendingUpdate()) {
+    app.relaunch()
+    app.quit()
+    return
+  }
+
   ulog(`[updater] App started v${app.getVersion()}`)
   createWindow()
   checkForUpdates()
