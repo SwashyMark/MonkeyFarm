@@ -6,7 +6,7 @@ const fs = require('node:fs')
 
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
-const UPDATE_FILES = ['renderer.js', 'index.html', 'preload.js', 'package.json']
+const UPDATE_FILES = ['main.js', 'renderer.js', 'index.html', 'preload.js', 'package.json']
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
@@ -46,13 +46,14 @@ async function checkForUpdates() {
     }
 
     const win = BrowserWindow.getAllWindows()[0]
-    const { response } = await dialog.showMessageBox(win ?? null, {
+    const msgOpts = {
       type: 'info',
       title: 'Update Ready',
       message: `Monkey Farm ${remote.version} downloaded`,
       detail: `Updated from ${local}. Restart to apply the new version.`,
       buttons: ['Restart Now', 'Later']
-    })
+    }
+    const { response } = await (win ? dialog.showMessageBox(win, msgOpts) : dialog.showMessageBox(msgOpts))
 
     if (response === 0) {
       app.relaunch()
