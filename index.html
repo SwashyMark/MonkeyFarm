@@ -7,6 +7,13 @@
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
 
+      /* ── GLOBAL SCROLLBARS ── */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #050f1e; }
+      ::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #2a7fbf; }
+      ::-webkit-scrollbar-corner { background: #050f1e; }
+
       body {
         width: 100vw; height: 100vh; overflow: hidden;
         font-family: 'Segoe UI', system-ui, sans-serif;
@@ -91,8 +98,6 @@
         padding: 8px;
         display: flex; flex-direction: column; gap: 8px;
       }
-      #sidebar::-webkit-scrollbar { width: 4px; }
-      #sidebar::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 2px; }
 
       .panel {
         background: #0d2137;
@@ -186,8 +191,6 @@
 
       /* Event log */
       #event-log { font-size: 10px; }
-      #event-log::-webkit-scrollbar { width: 3px; }
-      #event-log::-webkit-scrollbar-thumb { background: #1a5f8a; }
       .log-entry {
         padding: 2px 0; border-bottom: 1px solid #0d2137;
         line-height: 1.4; color: #88bbcc;
@@ -533,8 +536,6 @@
         overflow-y: auto; padding: 36px 12px 12px;
         color: #7fd8ff; font-size: 16px;
       }
-      #life-support-view::-webkit-scrollbar { width: 4px; }
-      #life-support-view::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 2px; }
       #life-support-view.active { display: flex; }
       #life-support-view-title {
         font-size: 12px; font-weight: bold; color: #7fd8ff;
@@ -549,8 +550,6 @@
         display: none; flex-direction: column;
         overflow-y: auto; padding: 36px 12px 12px;
       }
-      #population-view::-webkit-scrollbar { width: 4px; }
-      #population-view::-webkit-scrollbar-thumb { background: #1a5f8a; border-radius: 2px; }
       #population-view.active { display: flex; }
       #population-view-title {
         font-size: 12px; font-weight: bold; color: #7fd8ff;
