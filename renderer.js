@@ -172,6 +172,23 @@ const DEX_FUNC_VARIANTS = [
   { key: 'filterFeeder', name: 'Filter Feeder', masteryDesc: 'Filter Feeders also boost oxygen' },
 ];
 
+const MILESTONES_DEF = [
+  { key: 'firstAdult',         emoji: '🌟', name: 'First Adult',         desc: 'A sea monkey reaches adulthood.',              reward: '+50 XP',                          progress: () => [state.monkeys.filter(m=>m.alive&&m.stage==='adult').length, 1] },
+  { key: 'firstDeath',         emoji: '😢', name: 'First Loss',           desc: 'A sea monkey passes away.',                   reward: null,                              progress: () => [state.stats?.totalDied||0, 1] },
+  { key: 'pop5',               emoji: '🐠', name: 'Growing Tank',         desc: 'Reach a population of 5.',                    reward: '+25 XP',                          progress: () => [state.monkeys.filter(m=>m.alive).length, 5] },
+  { key: 'pop10',              emoji: '🎉', name: 'Busy Tank',            desc: 'Reach a population of 10.',                   reward: '+100 XP, +1 🥚 Egg Pack',         progress: () => [state.monkeys.filter(m=>m.alive).length, 10] },
+  { key: 'pop25',              emoji: '🏆', name: 'Thriving Colony',      desc: 'Reach a population of 25.',                   reward: '+200 XP, +1 🧪 Life Booster',     progress: () => [state.monkeys.filter(m=>m.alive).length, 25] },
+  { key: 'pop50',              emoji: '👑', name: 'Mega Colony',          desc: 'Reach a population of 50.',                   reward: '+500 XP, +1 🧪 Life Booster',     progress: () => [state.monkeys.filter(m=>m.alive).length, 50] },
+  { key: 'gen2',               emoji: '🧬', name: 'New Generation',       desc: 'Breed a second generation.',                  reward: '+75 XP, +1 🧪 Life Booster',      progress: () => [state.stats?.totalGenerations||1, 2] },
+  { key: 'gen5',               emoji: '🧬', name: 'Fifth Generation',     desc: 'Reach the fifth generation.',                 reward: '+150 XP, +1 🥚 Egg Pack',         progress: () => [state.stats?.totalGenerations||1, 5] },
+  { key: 'gen10',              emoji: '🧬', name: 'Dynasty',              desc: 'Reach the tenth generation.',                 reward: '+300 XP, +2 🥚 Egg Packs',        progress: () => [state.stats?.totalGenerations||1, 10] },
+  { key: 'totalBorn50',        emoji: '🥚', name: 'Prolific Breeders',    desc: '50 sea monkeys have been born.',               reward: '+100 XP',                         progress: () => [state.stats?.totalBorn||0, 50] },
+  { key: 'totalBorn100',       emoji: '🥚', name: 'Century Hatch',        desc: '100 sea monkeys have been born.',              reward: '+200 XP, +1 ✨ Glowing Flakes',   progress: () => [state.stats?.totalBorn||0, 100] },
+  { key: 'firstRareVariant',   emoji: '✨', name: 'Rare Discovery',       desc: 'Discover a rare colour variant.',              reward: '+100 XP, +1 ✨ Glowing Flakes',   progress: () => [['purple','C_BLU','C_TRANS','C_GOLD','C_BIO','C_VOID'].filter(k=>state.dex[k]?.discovered).length, 1] },
+  { key: 'firstFunctionalGene',emoji: '🔍', name: 'Genetic Discovery',   desc: 'Discover a functional gene variant.',          reward: '+100 XP, +1 🔍 Magnifying Glass', progress: () => [['M_FAST','M_SLOW','H_SENS','H_IRON','L_FLY','L_ANC','filterFeeder'].filter(k=>state.dex[k]?.discovered).length, 1] },
+  { key: 'firstMastery',       emoji: '⭐', name: 'First Mastery',        desc: 'Achieve mastery of any variant.',              reward: '+150 XP',                         progress: () => [Object.values(state.dex||{}).filter(e=>e.mastered).length, 1] },
+];
+
 // ─────────────────────────────────────────────
 // 2. DNA HELPER FUNCTIONS
 // ─────────────────────────────────────────────
@@ -1051,6 +1068,11 @@ function checkMilestones() {
     addXP(50);
     addLog('🌟 Milestone: First adult sea monkey!');
   }
+  if (!ms.pop5 && pop >= 5) {
+    ms.pop5 = true;
+    addXP(25);
+    addLog('🐠 Milestone: Population reached 5!');
+  }
   if (!ms.pop10 && pop >= 10) {
     ms.pop10 = true;
     state.inventory.boosterEggPack++;
@@ -1062,6 +1084,12 @@ function checkMilestones() {
     state.inventory.lifeBooster++;
     addXP(200);
     addLog('🏆 Milestone: Population reached 25! +1 🧪 Life Booster');
+  }
+  if (!ms.pop50 && pop >= 50) {
+    ms.pop50 = true;
+    state.inventory.lifeBooster++;
+    addXP(500);
+    addLog('👑 Milestone: Population reached 50! +1 🧪 Life Booster');
   }
   if (!ms.gen2 && state.stats.totalGenerations >= 2) {
     ms.gen2 = true;
@@ -1075,9 +1103,26 @@ function checkMilestones() {
     addXP(150);
     addLog('🧬 Milestone: Fifth generation! +1 🥚 Booster Egg Pack');
   }
+  if (!ms.gen10 && state.stats.totalGenerations >= 10) {
+    ms.gen10 = true;
+    state.inventory.boosterEggPack += 2;
+    addXP(300);
+    addLog('🧬 Milestone: Tenth generation — Dynasty! +2 🥚 Booster Egg Packs');
+  }
   if (!ms.firstDeath && state.stats.totalDied >= 1) {
     ms.firstDeath = true;
     addLog('😢 Milestone: First death...');
+  }
+  if (!ms.totalBorn50 && state.stats.totalBorn >= 50) {
+    ms.totalBorn50 = true;
+    addXP(100);
+    addLog('🥚 Milestone: 50 sea monkeys have been born!');
+  }
+  if (!ms.totalBorn100 && state.stats.totalBorn >= 100) {
+    ms.totalBorn100 = true;
+    state.inventory.glowingFlakes++;
+    addXP(200);
+    addLog('🥚 Milestone: 100 sea monkeys born! +1 ✨ Glowing Flakes');
   }
 
   // First rare variant (Tier 2 or 3 color, or any rare gene)
@@ -1098,6 +1143,14 @@ function checkMilestones() {
     state.inventory.magnifyingGlass++;
     addXP(100);
     addLog('🔍 Milestone: First functional gene discovered! +1 🔍 Magnifying Glass');
+  }
+
+  // First mastery
+  const anyMastered = Object.values(state.dex || {}).some(e => e.mastered);
+  if (!ms.firstMastery && anyMastered) {
+    ms.firstMastery = true;
+    addXP(150);
+    addLog('⭐ Milestone: First mastery unlocked!');
   }
 }
 
@@ -1239,6 +1292,28 @@ function renderMonkeydex() {
     <div class="dex-section-header">Functional Genes</div>
     <div class="dex-grid-3">${DEX_FUNC_VARIANTS.map(v => makeCard(v)).join('')}</div>
   `;
+
+  const ms = state.milestones || {};
+  const milestonePanel = document.getElementById('dex-milestones');
+  milestonePanel.innerHTML = MILESTONES_DEF.map(m => {
+    const done = !!ms[m.key];
+    const [cur, max] = m.progress();
+    const pct = Math.min(100, Math.round((cur / max) * 100));
+    const statusHtml = done
+      ? `<span class="ms-done">✅ Complete</span>`
+      : `<div class="ms-progress-bar"><div class="ms-progress-fill" style="width:${pct}%"></div></div>
+         <div class="ms-progress-label">${cur} / ${max}</div>`;
+    const rewardHtml = m.reward ? `<div class="ms-reward">${m.reward}</div>` : '';
+    return `<div class="ms-card ${done ? 'ms-complete' : ''}">
+      <div class="ms-top">
+        <span class="ms-emoji">${m.emoji}</span>
+        <span class="ms-name">${m.name}</span>
+      </div>
+      <div class="ms-desc">${m.desc}</div>
+      ${rewardHtml}
+      ${statusHtml}
+    </div>`;
+  }).join('');
 }
 
 let _popSignature = '';

@@ -442,14 +442,14 @@
       #monkeydex-modal.open { display: flex; }
       #monkeydex-popup {
         background: #0d2137; border: 1px solid #1a5f8a;
-        border-radius: 10px; padding: 18px; width: 720px; max-height: 72vh;
-        overflow-y: auto; box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+        border-radius: 10px; padding: 18px; width: min(1440px, 94vw); max-height: 82vh;
+        overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.8);
         display: flex; flex-direction: column; gap: 10px;
       }
       .dex-header {
         display: flex; justify-content: space-between; align-items: center;
         font-size: 14px; font-weight: bold; color: #7fd8ff;
-        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px; flex-shrink: 0;
       }
       .dex-close-btn {
         background: none; border: none; color: #5599bb;
@@ -458,10 +458,13 @@
       .dex-close-btn:hover { color: #7fd8ff; }
       .dex-note {
         font-size: 10px; color: #5599bb; text-align: center;
-        padding: 2px 0 4px;
+        padding: 2px 0 4px; flex-shrink: 0;
+      }
+      #dex-body {
+        display: flex; flex-direction: row; gap: 16px; flex: 1; overflow: hidden; min-height: 0;
       }
       #dex-grid {
-        display: flex; flex-direction: column; gap: 8px;
+        flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
       }
       .dex-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
       .dex-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -481,6 +484,31 @@
       .dex-rarity { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; }
       .dex-desc  { font-size: 9px; color: #88bbcc; line-height: 1.4; }
       .dex-found { font-size: 9px; color: #44cc77; }
+      /* ── MILESTONES PANEL ── */
+      #dex-milestones {
+        width: 280px; flex-shrink: 0; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 6px;
+        border-left: 1px solid #1a3a5c; padding-left: 16px;
+      }
+      .ms-section-header {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+        color: #5599bb; border-bottom: 1px solid #1a3a5c; padding-bottom: 4px;
+        margin-bottom: 2px; flex-shrink: 0;
+      }
+      .ms-card {
+        background: #071424; border: 1px solid #1a3a5c; border-radius: 6px;
+        padding: 8px 10px; display: flex; flex-direction: column; gap: 3px;
+      }
+      .ms-card.ms-complete { border-color: #2a6a3c; background: #071e10; }
+      .ms-top { display: flex; align-items: center; gap: 6px; }
+      .ms-emoji { font-size: 16px; line-height: 1; }
+      .ms-name  { font-size: 11px; font-weight: bold; color: #cce4ff; }
+      .ms-desc  { font-size: 9px; color: #5599bb; line-height: 1.3; }
+      .ms-reward { font-size: 9px; color: #7fd8ff; }
+      .ms-done  { font-size: 9px; color: #44cc77; }
+      .ms-progress-bar { height: 4px; background: #0a2a40; border-radius: 2px; margin-top: 2px; }
+      .ms-progress-fill { height: 100%; background: #1a7faa; border-radius: 2px; }
+      .ms-progress-label { font-size: 9px; color: #5599bb; }
 
       /* ── TANK TABS ── */
       #tank-tab-bar {
@@ -766,7 +794,12 @@
           <button class="dex-close-btn" id="monkeydex-close">✕</button>
         </div>
         <div class="dex-note">Breed 10 of each color (5 of each gene) to unlock mastery buffs! ⭐</div>
-        <div id="dex-grid"></div>
+        <div id="dex-body">
+          <div id="dex-grid"></div>
+          <div id="dex-milestones">
+            <div class="ms-section-header">🏅 Milestones</div>
+          </div>
+        </div>
       </div>
     </div>
 
