@@ -921,7 +921,7 @@ function updateMonkeyStage(m) {
 
 function updateMonkeyReproduction(female, aliveMonkeys) {
   if (female.pregnant) return;
-  if (fpsStressPopulation !== null && state.monkeys.length >= fpsStressPopulation) return;
+  if (fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation) return;
   const now = Date.now();
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
@@ -965,7 +965,7 @@ function processBirths(aliveMonkeys) {
     const mb = getMasteryBonuses();
     const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
     for (let i = 0; i < count; i++) {
-      if (fpsStressPopulation !== null && state.monkeys.length >= fpsStressPopulation) break;
+      if (fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation) break;
       const dna = inheritGenes(m, father || m);
       const baby = createMonkey({ generation: gen, dna });
       // Build log tag: phenotype + expressed functional traits
@@ -1827,7 +1827,7 @@ function renderGauges() {
 
   const notice = document.getElementById('capacity-notice');
   if (notice) {
-    const atCapacity = fpsStressPopulation !== null && state.monkeys.length >= fpsStressPopulation;
+    const atCapacity = fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation;
     notice.style.display = atCapacity ? '' : 'none';
   }
 }
