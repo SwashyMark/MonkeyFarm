@@ -904,6 +904,7 @@ function updateMonkeyStage(m) {
 
 function updateMonkeyReproduction(female, aliveMonkeys) {
   if (female.pregnant) return;
+  if (fpsStressPopulation !== null && state.monkeys.length >= fpsStressPopulation) return;
   const now = Date.now();
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
