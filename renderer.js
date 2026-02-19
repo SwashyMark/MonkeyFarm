@@ -551,10 +551,10 @@ function migrateState(loaded) {
 // ─────────────────────────────────────────────
 // 6. STATE HELPERS
 // ─────────────────────────────────────────────
-function addLog(msg) {
+function addLog(msg, group) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  state.log.unshift({ msg, time: timeStr, isNew: true });
+  state.log.unshift({ msg, time: timeStr, isNew: true, group: group ?? msg });
   if (state.log.length > 80) state.log.pop();
 }
 
@@ -606,7 +606,7 @@ function killMonkey(monkey, cause) {
   monkey.pregnant = false;
   state.stats.totalDied++;
   if (cause === 'old age') addXP(15);
-  addLog(`💀 ${monkey.name} died (${cause})`);
+  addLog(`💀 ${monkey.name} died (${cause})`, `💀 died (${cause})`);
 }
 
 function createMolt(m, fromStage) {
@@ -898,14 +898,14 @@ function updateMonkeyStage(m) {
     m.stageDuration = randRange(...BABY_GROW) / stats.growthSpeed;
     checkDexDiscovery(m);
     addXP(5);
-    addLog(`🐠 ${m.name} hatched!`);
+    addLog(`🐠 ${m.name} hatched!`, '🐠 hatched!');
   } else if (m.stage === 'baby' && effectiveElapsed >= dur) {
     if (Math.random() < 0.2) createMolt(m, 'baby');
     m.stage = 'juvenile';
     m.stageStartTime = now;
     m.stageDuration = randRange(...JUV_GROW) / stats.growthSpeed;
     addXP(10);
-    addLog(`🐟 ${m.name} grew into a juvenile!`);
+    addLog(`🐟 ${m.name} grew into a juvenile!`, '🐟 grew into a juvenile!');
   } else if (m.stage === 'juvenile' && effectiveElapsed >= dur) {
     if (Math.random() < 0.2) createMolt(m, 'juvenile');
     m.stage = 'adult';
@@ -913,7 +913,7 @@ function updateMonkeyStage(m) {
     const mb = getMasteryBonuses();
     m.stageDuration = randRange(...ADULT_LIFE) * stats.lifeMult * mb.lifespanMult;
     addXP(20);
-    addLog(`🦐 ${m.name} is now an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`);
+    addLog(`🦐 ${m.name} is now an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, `🦐 became an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`);
   } else if (m.stage === 'adult' && effectiveElapsed >= dur) {
     killMonkey(m, 'old age');
   }
@@ -937,7 +937,7 @@ function updateMonkeyReproduction(female, aliveMonkeys) {
   female.lastMatedAt = now;
   state.stats.totalMatingEvents++;
   addXP(5);
-  addLog(`💕 ${female.name} & ${mate.name} mated!`);
+  addLog(`💕 ${female.name} & ${mate.name} mated!`, '💕 mated!');
 }
 
 function processBirths(aliveMonkeys) {
@@ -985,7 +985,7 @@ function processBirths(aliveMonkeys) {
       if (hasDominant(dna.filt, 'F')) traits.push('Filter Feeder');
       if (traits.length) tag += '+' + traits.join('+');
       addXP(10);
-      addLog(`🥚 ${m.name} laid egg: ${baby.name} [${tag}]!`);
+      addLog(`🥚 ${m.name} laid egg: ${baby.name} [${tag}]!`, '🥚 egg laid!');
     }
     if (usedFlakes) addLog('✨ Glowing Flakes boosted mutation rates for this birth! (parents took damage)');
   }
@@ -2033,7 +2033,7 @@ function renderEventLog() {
   const grouped = [];
   for (const e of entries) {
     const last = grouped[grouped.length - 1];
-    if (last && last.msg === e.msg) {
+    if (last && last.group === e.group) {
       last.count++;
     } else {
       grouped.push({ ...e, count: 1 });
@@ -2042,7 +2042,7 @@ function renderEventLog() {
 
   container.innerHTML = grouped.map((e, i) =>
     `<div class="log-entry ${i === 0 && e.isNew ? 'new' : ''}">
-      <span class="log-time">${e.time}</span> ${e.count > 1 ? `${e.count}x ` : ''}${e.msg}
+      <span class="log-time">${e.time}</span> ${e.count > 1 ? `${e.count}x ` : ''}${e.count > 1 ? e.group : e.msg}
     </div>`
   ).join('');
   entries.forEach(e => { e.isNew = false; });
