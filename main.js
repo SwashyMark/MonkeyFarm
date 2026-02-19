@@ -39,21 +39,23 @@ async function checkForUpdates() {
     const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version
     if (!semverGt(remote.version, local)) return
 
-    console.log(`Update available: ${local} → ${remote.version}`)
+    console.log(`[updater] Update available: ${local} → ${remote.version}`)
+    console.log('[updater] Downloading files...')
     for (const file of UPDATE_FILES) {
       const content = await fetchText(`${REPO_RAW}/${file}`)
       fs.writeFileSync(path.join(__dirname, file), content, 'utf8')
+      console.log(`[updater] Downloaded: ${file}`)
     }
 
-    const win = BrowserWindow.getAllWindows()[0]
-    const msgOpts = {
+    console.log('[updater] Showing restart dialog...')
+    const { response } = await dialog.showMessageBox({
       type: 'info',
       title: 'Update Ready',
       message: `Monkey Farm ${remote.version} downloaded`,
       detail: `Updated from ${local}. Restart to apply the new version.`,
       buttons: ['Restart Now', 'Later']
-    }
-    const { response } = await (win ? dialog.showMessageBox(win, msgOpts) : dialog.showMessageBox(msgOpts))
+    })
+    console.log(`[updater] Dialog response: ${response}`)
 
     if (response === 0) {
       app.relaunch()
@@ -61,6 +63,7 @@ async function checkForUpdates() {
     }
   } catch (err) {
     console.error('[updater] check failed:', err.message)
+    console.error(err.stack)
   }
 }
 // ─────────────────────────────────────────────────────────────────────────
