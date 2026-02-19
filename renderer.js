@@ -345,6 +345,7 @@ const DEFAULT_STATE = {
   playTimeMs: 0,
   totalOfflineMs: 0,
   gameStarted: false,
+  fpsStressPop: null,
   tankXP: 0,
   tank: {
     waterAdded: false,
@@ -964,6 +965,7 @@ function processBirths(aliveMonkeys) {
     const mb = getMasteryBonuses();
     const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
     for (let i = 0; i < count; i++) {
+      if (fpsStressPopulation !== null && state.monkeys.length >= fpsStressPopulation) break;
       const dna = inheritGenes(m, father || m);
       const baby = createMonkey({ generation: gen, dna });
       // Build log tag: phenotype + expressed functional traits
@@ -1700,6 +1702,7 @@ function renderAll() {
         if (fpsLowSince === null) fpsLowSince = now;
         else if (now - fpsLowSince >= 5000) {
           fpsStressPopulation = state.monkeys.length;
+          state.fpsStressPop = fpsStressPopulation;
           const stressEl = document.getElementById('fps-stress-pop');
           if (stressEl) stressEl.textContent = fpsStressPopulation;
         }
@@ -2446,6 +2449,11 @@ function renderTimerStats() {
 function initGame() {
   state = loadState();
   if (!state.tankCreatedAt) state.tankCreatedAt = Date.now();
+  if (state.fpsStressPop != null) {
+    fpsStressPopulation = state.fpsStressPop;
+    const el = document.getElementById('fps-stress-pop');
+    if (el) el.textContent = fpsStressPopulation;
+  }
   applyOfflineProgress();
   state.lastTick = Date.now();
 
