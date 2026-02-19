@@ -2425,16 +2425,41 @@ function generateBubbles(count) {
   const airstoneWrap = document.getElementById('airstone-wrap');
   if (airstoneWrap) airstoneWrap.style.display = level > 0 ? 'flex' : 'none';
 
+  if (level > 0) {
+    // Inject a dynamic keyframe so bubbles rise straight within the tube
+    // until 28px from the tank top, then drift outward via --bx per bubble.
+    const tankH = tank.clientHeight || 400;
+    const breakPct = Math.round((tankH - 28) / tankH * 100);
+    let dynStyle = document.getElementById('bubble-rise-dynamic');
+    if (!dynStyle) {
+      dynStyle = document.createElement('style');
+      dynStyle.id = 'bubble-rise-dynamic';
+      document.head.appendChild(dynStyle);
+    }
+    dynStyle.textContent = `
+      @keyframes bubble-rise {
+        0%           { bottom: 0;               transform: translateX(0);              opacity: 0.7; }
+        ${breakPct}% { bottom: calc(100% - 28px); transform: translateX(0);           opacity: 0.7; }
+        100%         { bottom: 100%;            transform: translateX(var(--bx, 0px)); opacity: 0;   }
+      }`;
+  } else {
+    // Remove dynamic override so the default straight-rise animation is used
+    document.getElementById('bubble-rise-dynamic')?.remove();
+  }
+
   for (let i = 0; i < n; i++) {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     const size = 4 + Math.random() * 8;
     bubble.style.width  = size + 'px';
     bubble.style.height = size + 'px';
-    // When airstone is active, cluster bubbles around it (79% left); otherwise random
-    bubble.style.left = level > 0
-      ? (78 + Math.random() * 3) + '%'
-      : (5 + Math.random() * 90) + '%';
+    if (level > 0) {
+      // Cluster within tube; assign random drift for dispersion above tube exit
+      bubble.style.left = (78.5 + Math.random() * 1.5) + '%';
+      bubble.style.setProperty('--bx', ((Math.random() - 0.5) * 80) + 'px');
+    } else {
+      bubble.style.left = (5 + Math.random() * 90) + '%';
+    }
     bubble.style.animationDuration = (4 + Math.random() * 8) + 's';
     bubble.style.animationDelay    = (-Math.random() * 10) + 's';
     tank.appendChild(bubble);
