@@ -46,6 +46,11 @@ function semverGt(a, b) {
 // Called at startup: if a pending update was staged, apply it now and relaunch.
 function applyPendingUpdate() {
   if (!fs.existsSync(PENDING_DIR)) return false
+  // If it somehow exists as a file rather than a directory, remove it and bail.
+  if (!fs.statSync(PENDING_DIR).isDirectory()) {
+    fs.rmSync(PENDING_DIR, { force: true })
+    return false
+  }
   try {
     ulog('[updater] Applying pending update...')
     for (const file of fs.readdirSync(PENDING_DIR)) {
@@ -72,6 +77,9 @@ async function checkForUpdates() {
 
     ulog(`[updater] Update available: ${local} → ${remote.version}`)
     ulog('[updater] Downloading to staging folder...')
+    if (fs.existsSync(PENDING_DIR) && !fs.statSync(PENDING_DIR).isDirectory()) {
+      fs.rmSync(PENDING_DIR, { force: true })
+    }
     fs.mkdirSync(PENDING_DIR, { recursive: true })
     for (const file of UPDATE_FILES) {
       const content = await fetchText(`${REPO_RAW}/${file}${bust}`)
