@@ -6,7 +6,7 @@ const fs = require('node:fs')
 
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
-const UPDATE_FILES = ['main.js', 'renderer.js', 'index.html', 'preload.js', 'package.json']
+const UPDATE_FILES = ['renderer.js', 'index.html', 'preload.js', 'package.json']
 const PENDING_DIR = path.join(__dirname, '_pending_update')
 
 function ulog(msg) {
