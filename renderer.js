@@ -834,6 +834,22 @@ function gameTick(dtMs) {
   // --- Process births ---
   processBirths(alive);
 
+  // --- Auto-remove corpses after 5 minutes, penalise cleanliness ---
+  const CORPSE_TTL = 5 * 60 * 1000;
+  const now = Date.now();
+  const before = state.monkeys.length;
+  state.monkeys = state.monkeys.filter(m => {
+    if (m.alive || !m.diedAt) return true;
+    if (now - m.diedAt >= CORPSE_TTL) {
+      t.cleanliness = Math.max(0, t.cleanliness - 5);
+      return false;
+    }
+    return true;
+  });
+  if (state.monkeys.length < before) {
+    addLog(`🧹 Corpse${before - state.monkeys.length > 1 ? 's' : ''} decayed. -${(before - state.monkeys.length) * 5} cleanliness.`);
+  }
+
   // --- Update stats ---
   const livePop = state.monkeys.filter(m => m.alive).length;
   if (livePop > state.stats.peakPopulation) state.stats.peakPopulation = livePop;
@@ -1680,7 +1696,7 @@ function renderAll() {
     fpsWindowStart = now;
 
     if (fpsStressPopulation === null) {
-      if (currentFps < 30) {
+      if (currentFps < 38) {
         if (fpsLowSince === null) fpsLowSince = now;
         else if (now - fpsLowSince >= 5000) {
           fpsStressPopulation = state.monkeys.length;
