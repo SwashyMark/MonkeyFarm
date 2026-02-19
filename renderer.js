@@ -2322,9 +2322,9 @@ function fmtDuration(ms) {
 }
 
 function renderTimerStats() {
-  const now = Date.now();
-  document.getElementById('stat-tank-age').textContent   = fmtDuration(state.tankCreatedAt ? now - state.tankCreatedAt : 0);
-  document.getElementById('stat-play-time').textContent  = fmtDuration(state.playTimeMs || 0);
+  const tankAge = (state.playTimeMs || 0) + (state.totalOfflineMs || 0);
+  document.getElementById('stat-tank-age').textContent     = fmtDuration(tankAge);
+  document.getElementById('stat-play-time').textContent    = fmtDuration(state.playTimeMs || 0);
   document.getElementById('stat-offline-time').textContent = fmtDuration(state.totalOfflineMs || 0);
 }
 
