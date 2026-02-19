@@ -2,7 +2,7 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const path = require('node:path')
 const https = require('node:https')
-const fs = require('node:fs')
+const fs = require('node:fs') 
 
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
