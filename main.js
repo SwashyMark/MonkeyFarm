@@ -7,7 +7,12 @@ const fs = require('node:fs')
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
 const UPDATE_FILES = ['renderer.js', 'index.html', 'preload.js', 'package.json']
-const PENDING_DIR = path.join(__dirname, '_pending_update')
+
+// When packaged as an asar, __dirname is inside the read-only archive.
+// Write files to resources/app/ instead — Electron loads that in preference to app.asar.
+const IS_ASAR = app.getAppPath().endsWith('.asar')
+const APP_DIR     = IS_ASAR ? path.join(process.resourcesPath, 'app') : __dirname
+const PENDING_DIR = path.join(process.resourcesPath, '_pending_update')
 
 function ulog(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`
@@ -46,15 +51,15 @@ function semverGt(a, b) {
 // Called at startup: if a pending update was staged, apply it now and relaunch.
 function applyPendingUpdate() {
   if (!fs.existsSync(PENDING_DIR)) return false
-  // If it somehow exists as a file rather than a directory, remove it and bail.
   if (!fs.statSync(PENDING_DIR).isDirectory()) {
     fs.rmSync(PENDING_DIR, { force: true })
     return false
   }
   try {
     ulog('[updater] Applying pending update...')
+    fs.mkdirSync(APP_DIR, { recursive: true })
     for (const file of fs.readdirSync(PENDING_DIR)) {
-      fs.copyFileSync(path.join(PENDING_DIR, file), path.join(__dirname, file))
+      fs.copyFileSync(path.join(PENDING_DIR, file), path.join(APP_DIR, file))
       ulog(`[updater] Applied: ${file}`)
     }
     fs.rmSync(PENDING_DIR, { recursive: true, force: true })
@@ -71,8 +76,12 @@ async function checkForUpdates() {
   try {
     const bust = `?t=${Date.now()}`
     const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json${bust}`))
-    const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version
-    ulog(`[updater] Check: local=${local} remote=${remote.version}`)
+    // Read local version from APP_DIR (may be the unpacked app/ dir after an update)
+    const pkgPath = fs.existsSync(path.join(APP_DIR, 'package.json'))
+      ? path.join(APP_DIR, 'package.json')
+      : path.join(__dirname, 'package.json')
+    const local = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version
+    ulog(`[updater] Check: local=${local} remote=${remote.version} (asar=${IS_ASAR})`)
     if (!semverGt(remote.version, local)) return
 
     ulog(`[updater] Update available: ${local} → ${remote.version}`)
@@ -143,7 +152,7 @@ app.whenReady().then(() => {
     return
   }
 
-  ulog(`[updater] App started v${app.getVersion()}`)
+  ulog(`[updater] App started v${app.getVersion()} (asar=${IS_ASAR})`)
   createWindow()
   checkForUpdates()
 
