@@ -856,7 +856,7 @@ function updateMonkeyStage(m) {
   const stats = resolveStats(m);
 
   if (m.stage === 'egg' && effectiveElapsed >= dur) {
-    createMolt(m, 'egg');
+    if (Math.random() < 0.2) createMolt(m, 'egg');
     m.stage = 'baby';
     m.stageStartTime = now;
     m.stageDuration = randRange(...BABY_GROW) / stats.growthSpeed;
@@ -864,14 +864,14 @@ function updateMonkeyStage(m) {
     addXP(5);
     addLog(`🐠 ${m.name} hatched!`);
   } else if (m.stage === 'baby' && effectiveElapsed >= dur) {
-    createMolt(m, 'baby');
+    if (Math.random() < 0.2) createMolt(m, 'baby');
     m.stage = 'juvenile';
     m.stageStartTime = now;
     m.stageDuration = randRange(...JUV_GROW) / stats.growthSpeed;
     addXP(10);
     addLog(`🐟 ${m.name} grew into a juvenile!`);
   } else if (m.stage === 'juvenile' && effectiveElapsed >= dur) {
-    createMolt(m, 'juvenile');
+    if (Math.random() < 0.2) createMolt(m, 'juvenile');
     m.stage = 'adult';
     m.stageStartTime = now;
     const mb = getMasteryBonuses();
