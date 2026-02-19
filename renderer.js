@@ -1824,6 +1824,12 @@ function renderGauges() {
       bar.classList.remove('danger');
     }
   }
+
+  const notice = document.getElementById('capacity-notice');
+  if (notice) {
+    const atCapacity = fpsStressPopulation !== null && state.monkeys.length >= fpsStressPopulation;
+    notice.style.display = atCapacity ? '' : 'none';
+  }
 }
 
 function renderPopulationCounts() {
