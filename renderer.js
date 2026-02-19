@@ -2029,9 +2029,20 @@ function renderEventLog() {
   if (container._lastTop === firstEntry.msg + firstEntry.time) return;
   container._lastTop = firstEntry.msg + firstEntry.time;
 
-  container.innerHTML = entries.map((e, i) =>
+  // Group consecutive entries with the same message
+  const grouped = [];
+  for (const e of entries) {
+    const last = grouped[grouped.length - 1];
+    if (last && last.msg === e.msg) {
+      last.count++;
+    } else {
+      grouped.push({ ...e, count: 1 });
+    }
+  }
+
+  container.innerHTML = grouped.map((e, i) =>
     `<div class="log-entry ${i === 0 && e.isNew ? 'new' : ''}">
-      <span class="log-time">${e.time}</span> ${e.msg}
+      <span class="log-time">${e.time}</span> ${e.count > 1 ? `${e.count}x ` : ''}${e.msg}
     </div>`
   ).join('');
   entries.forEach(e => { e.isNew = false; });
