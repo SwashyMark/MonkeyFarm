@@ -58,6 +58,12 @@ function applyPendingUpdate() {
   try {
     ulog('[updater] Applying pending update...')
     fs.mkdirSync(APP_DIR, { recursive: true })
+    // If bootstrapping resources/app/ for the first time, copy main.js from the
+    // asar so the directory is a complete, bootable app (Electron reads fs from asar).
+    if (IS_ASAR && !fs.existsSync(path.join(APP_DIR, 'main.js'))) {
+      fs.writeFileSync(path.join(APP_DIR, 'main.js'), fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8'), 'utf8')
+      ulog('[updater] Bootstrapped main.js into app directory')
+    }
     for (const file of fs.readdirSync(PENDING_DIR)) {
       fs.copyFileSync(path.join(PENDING_DIR, file), path.join(APP_DIR, file))
       ulog(`[updater] Applied: ${file}`)
