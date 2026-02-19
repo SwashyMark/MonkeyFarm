@@ -35,14 +35,15 @@ function semverGt(a, b) {
 
 async function checkForUpdates() {
   try {
-    const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json`))
+    const bust = `?t=${Date.now()}`
+    const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json${bust}`))
     const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version
     if (!semverGt(remote.version, local)) return
 
     console.log(`[updater] Update available: ${local} → ${remote.version}`)
     console.log('[updater] Downloading files...')
     for (const file of UPDATE_FILES) {
-      const content = await fetchText(`${REPO_RAW}/${file}`)
+      const content = await fetchText(`${REPO_RAW}/${file}${bust}`)
       fs.writeFileSync(path.join(__dirname, file), content, 'utf8')
       console.log(`[updater] Downloaded: ${file}`)
     }
