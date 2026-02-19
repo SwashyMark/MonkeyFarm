@@ -247,6 +247,25 @@
         pointer-events: none;
       }
 
+      /* ── AIRSTONE ── */
+      #airstone-wrap {
+        position: absolute; left: 79%; bottom: 14px; z-index: 1;
+        pointer-events: none; flex-direction: column; align-items: center; display: none;
+      }
+      #airstone-pipe {
+        width: 4px; height: 160px;
+        background: rgba(160,210,240,0.10);
+        border: 1px solid rgba(160,210,240,0.20);
+        border-radius: 2px;
+      }
+      #airstone-stone {
+        width: 16px; height: 9px;
+        background: linear-gradient(to bottom, #70808a, #4a5560);
+        border-radius: 3px 3px 2px 2px;
+        border: 1px solid #38424a;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      }
+
       /* Monkey container */
       #monkey-container { position: absolute; inset: 0; z-index: 2; }
 
@@ -972,6 +991,10 @@
 
         <!-- 60%: lone tall centerpiece seaweed -->
         <div class="sw" style="left:60%;  width:4px;  height:178px; background:linear-gradient(to top,#0a3d18,#1a7a34); animation:sway-l 5.2s ease-in-out infinite; animation-delay:-3.1s;"></div>
+      </div>
+      <div id="airstone-wrap">
+        <div id="airstone-pipe"></div>
+        <div id="airstone-stone"></div>
       </div>
       <div id="tank-tab-bar">
         <button class="tank-tab active" id="tab-tank">🌊 Tank</button>

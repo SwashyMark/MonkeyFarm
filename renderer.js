@@ -2418,14 +2418,23 @@ const AERATION_BUBBLE_COUNTS = [5, 10, 15, 20, 25, 30];
 function generateBubbles(count) {
   const tank = document.getElementById('tank');
   tank.querySelectorAll('.bubble').forEach(b => b.remove());
-  const n = count ?? AERATION_BUBBLE_COUNTS[state?.aeration?.level ?? 0] ?? 5;
+  const level = state?.aeration?.level ?? 0;
+  const n = count ?? AERATION_BUBBLE_COUNTS[level] ?? 5;
+
+  // Show/hide airstone based on aeration level
+  const airstoneWrap = document.getElementById('airstone-wrap');
+  if (airstoneWrap) airstoneWrap.style.display = level > 0 ? 'flex' : 'none';
+
   for (let i = 0; i < n; i++) {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     const size = 4 + Math.random() * 8;
     bubble.style.width  = size + 'px';
     bubble.style.height = size + 'px';
-    bubble.style.left   = (5 + Math.random() * 90) + '%';
+    // When airstone is active, cluster bubbles around it (79% left); otherwise random
+    bubble.style.left = level > 0
+      ? (78 + Math.random() * 3) + '%'
+      : (5 + Math.random() * 90) + '%';
     bubble.style.animationDuration = (4 + Math.random() * 8) + 's';
     bubble.style.animationDelay    = (-Math.random() * 10) + 's';
     tank.appendChild(bubble);
