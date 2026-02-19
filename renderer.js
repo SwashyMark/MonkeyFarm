@@ -2413,7 +2413,7 @@ function setupEventListeners() {
 // 14. BUBBLE GENERATION + INIT
 // ─────────────────────────────────────────────
 
-const AERATION_BUBBLE_COUNTS = [5, 10, 15, 20, 25, 30];
+const AERATION_BUBBLE_COUNTS = [20, 40, 60, 80, 100, 120];
 
 // Left-% positions for each airstone (1-indexed by level), placed in plant gaps
 const AIRSTONE_POSITIONS = [8, 25, 40, 63, 80];
