@@ -310,7 +310,7 @@ function genotypeCardHTML(dna) {
   return `<table class="gene-table">${rows}</table>`;
 }
 
-// ─────────────────────────────────────────────
+// ───────────────────────────────────���─────────
 // 3. DEFAULT STATE
 // ─────────────────────────────────────────────
 const DEFAULT_STATE = {
@@ -382,12 +382,12 @@ const DEFAULT_STATE = {
 
 // ─────────────────────────────────────────────
 // 4. LIVE STATE + NOTIFICATIONS
-// ─────────────────────────────────────────────
+// ───────────��─────────────────────────────────
 let state = {};
 let notifications = [];
 let debugMode = false;
 let debugSpeed = 1;
-let debugLocks = { food: 'normal', oxygen: 'normal', clean: 'normal' };
+let debugLocks = { food: 'normal', oxygen: 'normal', clean: 'normal', aer: 'normal', skim: 'normal', feeder: 'normal' };
 let showTimers = false;
 let fpsLastTime = 0;
 let fpsFrameCount = 0;
@@ -779,6 +779,15 @@ function gameTick(dtMs) {
     if (debugLocks.food   !== 'normal') t.food        = debugLocks.food   === '0' ? 0 : 100;
     if (debugLocks.oxygen !== 'normal') t.oxygen      = debugLocks.oxygen === '0' ? 0 : 100;
     if (debugLocks.clean  !== 'normal') t.cleanliness = debugLocks.clean  === '0' ? 0 : 100;
+    const _lockLS = (obj, key) => {
+      const lvl = parseInt(key);
+      obj.level = lvl;
+      if (lvl > 0) { obj.startedAt = Date.now(); obj.duration = 999_999_999; }
+      else         { obj.startedAt = null; obj.duration = null; }
+    };
+    if (debugLocks.aer    !== 'normal') _lockLS(state.aeration, debugLocks.aer);
+    if (debugLocks.skim   !== 'normal') _lockLS(state.skimmer,  debugLocks.skim);
+    if (debugLocks.feeder !== 'normal') _lockLS(state.feeder,   debugLocks.feeder);
   }
 
   // --- Update each monkey ---
@@ -2197,16 +2206,19 @@ function setupEventListeners() {
   });
 
   // Debug condition locks
+  const lsLockVals = ['normal', '0', '1', '2', '3', '4', '5'];
   const lockConfigs = [
-    { stat: 'food',   ids: ['dbg-food-0',   'dbg-food-nrm',   'dbg-food-100']   },
-    { stat: 'oxygen', ids: ['dbg-oxygen-0', 'dbg-oxygen-nrm', 'dbg-oxygen-100'] },
-    { stat: 'clean',  ids: ['dbg-clean-0',  'dbg-clean-nrm',  'dbg-clean-100']  },
+    { stat: 'food',   ids: ['dbg-food-0',   'dbg-food-nrm',   'dbg-food-100'],   vals: ['0', 'normal', '100'] },
+    { stat: 'oxygen', ids: ['dbg-oxygen-0', 'dbg-oxygen-nrm', 'dbg-oxygen-100'], vals: ['0', 'normal', '100'] },
+    { stat: 'clean',  ids: ['dbg-clean-0',  'dbg-clean-nrm',  'dbg-clean-100'],  vals: ['0', 'normal', '100'] },
+    { stat: 'aer',    ids: ['dbg-aer-nrm',  'dbg-aer-0',  'dbg-aer-1',  'dbg-aer-2',  'dbg-aer-3',  'dbg-aer-4',  'dbg-aer-5'],  vals: lsLockVals },
+    { stat: 'skim',   ids: ['dbg-skim-nrm', 'dbg-skim-0', 'dbg-skim-1', 'dbg-skim-2', 'dbg-skim-3', 'dbg-skim-4', 'dbg-skim-5'], vals: lsLockVals },
+    { stat: 'feeder', ids: ['dbg-feeder-nrm','dbg-feeder-0','dbg-feeder-1','dbg-feeder-2','dbg-feeder-3','dbg-feeder-4','dbg-feeder-5'], vals: lsLockVals },
   ];
-  const lockVals = ['0', 'normal', '100'];
-  lockConfigs.forEach(({ stat, ids }) => {
+  lockConfigs.forEach(({ stat, ids, vals }) => {
     ids.forEach((id, i) => {
       document.getElementById(id).addEventListener('click', () => {
-        debugLocks[stat] = lockVals[i];
+        debugLocks[stat] = vals[i];
         ids.forEach((bid, j) => document.getElementById(bid).classList.toggle('debug-active', j === i));
       });
     });
