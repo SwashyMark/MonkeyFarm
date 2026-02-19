@@ -7,6 +7,13 @@ const fs = require('node:fs')
 // ── Auto-updater ─────────────────────────────────────────────────────────
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
 const UPDATE_FILES = ['main.js', 'renderer.js', 'index.html', 'preload.js', 'package.json']
+const LOG_FILE = path.join(__dirname, 'updater.log')
+
+function ulog(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`
+  console.log(msg)
+  try { fs.appendFileSync(LOG_FILE, line, 'utf8') } catch (_) {}
+}
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
@@ -38,17 +45,18 @@ async function checkForUpdates() {
     const bust = `?t=${Date.now()}`
     const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json${bust}`))
     const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version
+    ulog(`[updater] Check: local=${local} remote=${remote.version}`)
     if (!semverGt(remote.version, local)) return
 
-    console.log(`[updater] Update available: ${local} → ${remote.version}`)
-    console.log('[updater] Downloading files...')
+    ulog(`[updater] Update available: ${local} → ${remote.version}`)
+    ulog('[updater] Downloading files...')
     for (const file of UPDATE_FILES) {
       const content = await fetchText(`${REPO_RAW}/${file}${bust}`)
       fs.writeFileSync(path.join(__dirname, file), content, 'utf8')
-      console.log(`[updater] Downloaded: ${file}`)
+      ulog(`[updater] Downloaded: ${file}`)
     }
 
-    console.log('[updater] Showing restart dialog...')
+    ulog('[updater] Showing restart dialog...')
     const { response } = await dialog.showMessageBox({
       type: 'info',
       title: 'Update Ready',
@@ -56,18 +64,18 @@ async function checkForUpdates() {
       detail: `Updated from ${local}. Restart to apply the new version.`,
       buttons: ['Restart Now', 'Later']
     })
-    console.log(`[updater] Dialog response: ${response}`)
+    ulog(`[updater] Dialog response: ${response}`)
 
     if (response === 0) {
       app.relaunch()
       app.quit()
     }
   } catch (err) {
-    console.error('[updater] check failed:', err.message)
-    console.error(err.stack)
+    ulog(`[updater] ERROR: ${err.message}`)
+    ulog(err.stack)
   }
 }
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────��───────────────────────────────────────────────
 
 const UPDATE_INTERVAL_MS = 60 * 1000
 let nextCheckTime = Date.now()
@@ -96,6 +104,7 @@ function createWindow () {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  ulog(`[updater] App started v${app.getVersion()}`)
   createWindow()
   checkForUpdates()
 
