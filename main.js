@@ -8,11 +8,18 @@ const fs = require('node:fs')
 const REPO_RAW = 'https://raw.githubusercontent.com/SwashyMark/MonkeyFarm/main'
 const UPDATE_FILES = ['renderer.js', 'index.html', 'preload.js', 'package.json']
 
-// When packaged as an asar, __dirname is inside the read-only archive.
-// Write files to resources/app/ instead — Electron loads that in preference to app.asar.
+// When packaged as an asar, main.js still runs from inside it — but we can
+// point the window at updated files in resources/app/ if they exist there.
 const IS_ASAR = app.getAppPath().endsWith('.asar')
-const APP_DIR     = IS_ASAR ? path.join(process.resourcesPath, 'app') : __dirname
-const PENDING_DIR = path.join(process.resourcesPath, '_pending_update')
+const RESOURCES_APP = path.join(process.resourcesPath, 'app')
+const PENDING_DIR    = path.join(process.resourcesPath, '_pending_update')
+
+// APP_DIR: where we read/write UI files and check versions.
+// If resources/app/index.html exists (a previous update placed it there), use it.
+// Otherwise fall back to __dirname (reads transparently from the asar).
+const APP_DIR = (IS_ASAR && fs.existsSync(path.join(RESOURCES_APP, 'index.html')))
+  ? RESOURCES_APP
+  : __dirname
 
 function ulog(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`
@@ -48,7 +55,7 @@ function semverGt(a, b) {
   return false
 }
 
-// Called at startup: if a pending update was staged, apply it now and relaunch.
+// Called at startup: copy staged files into resources/app/ and relaunch.
 function applyPendingUpdate() {
   if (!fs.existsSync(PENDING_DIR)) return false
   if (!fs.statSync(PENDING_DIR).isDirectory()) {
@@ -57,15 +64,20 @@ function applyPendingUpdate() {
   }
   try {
     ulog('[updater] Applying pending update...')
-    fs.mkdirSync(APP_DIR, { recursive: true })
-    // If bootstrapping resources/app/ for the first time, copy main.js from the
-    // asar so the directory is a complete, bootable app (Electron reads fs from asar).
-    if (IS_ASAR && !fs.existsSync(path.join(APP_DIR, 'main.js'))) {
-      fs.writeFileSync(path.join(APP_DIR, 'main.js'), fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8'), 'utf8')
-      ulog('[updater] Bootstrapped main.js into app directory')
+    fs.mkdirSync(RESOURCES_APP, { recursive: true })
+    // If bootstrapping resources/app/ for the first time, seed it with all known
+    // app files from the asar so it is a complete, loadable directory.
+    const ALL_FILES = ['main.js', 'renderer.js', 'index.html', 'preload.js', 'package.json']
+    for (const f of ALL_FILES) {
+      const dest = path.join(RESOURCES_APP, f)
+      if (!fs.existsSync(dest)) {
+        fs.writeFileSync(dest, fs.readFileSync(path.join(__dirname, f), 'utf8'), 'utf8')
+        ulog(`[updater] Seeded: ${f}`)
+      }
     }
+    // Now overwrite with the freshly downloaded files.
     for (const file of fs.readdirSync(PENDING_DIR)) {
-      fs.copyFileSync(path.join(PENDING_DIR, file), path.join(APP_DIR, file))
+      fs.copyFileSync(path.join(PENDING_DIR, file), path.join(RESOURCES_APP, file))
       ulog(`[updater] Applied: ${file}`)
     }
     fs.rmSync(PENDING_DIR, { recursive: true, force: true })
@@ -82,12 +94,9 @@ async function checkForUpdates() {
   try {
     const bust = `?t=${Date.now()}`
     const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json${bust}`))
-    // Read local version from APP_DIR (may be the unpacked app/ dir after an update)
-    const pkgPath = fs.existsSync(path.join(APP_DIR, 'package.json'))
-      ? path.join(APP_DIR, 'package.json')
-      : path.join(__dirname, 'package.json')
+    const pkgPath = path.join(APP_DIR, 'package.json')
     const local = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version
-    ulog(`[updater] Check: local=${local} remote=${remote.version} (asar=${IS_ASAR})`)
+    ulog(`[updater] Check: local=${local} remote=${remote.version} (appDir=${APP_DIR})`)
     if (!semverGt(remote.version, local)) return
 
     ulog(`[updater] Update available: ${local} → ${remote.version}`)
@@ -126,39 +135,41 @@ async function checkForUpdates() {
 const UPDATE_INTERVAL_MS = 60 * 1000
 let nextCheckTime = Date.now()
 
-ipcMain.handle('get-app-version', () => app.getVersion())
+ipcMain.handle('get-app-version', () => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8')).version
+  } catch {
+    return app.getVersion()
+  }
+})
 ipcMain.handle('get-next-check-time', () => nextCheckTime)
 
 function createWindow () {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(APP_DIR, 'preload.js'),
       backgroundThrottling: false
     }
   })
 
-  // and load the index.html of the app.
-  mainWindow.loadFile('index.html')
+  // Load index.html from APP_DIR — points to resources/app/ when updated,
+  // otherwise reads transparently from the asar.
+  mainWindow.loadFile(path.join(APP_DIR, 'index.html'))
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Apply any update that was staged during the previous session.
   if (applyPendingUpdate()) {
     app.relaunch()
     app.quit()
     return
   }
 
-  ulog(`[updater] App started v${app.getVersion()} (asar=${IS_ASAR})`)
+  ulog(`[updater] App started v${app.getVersion()} appDir=${APP_DIR}`)
   createWindow()
   checkForUpdates()
 
@@ -169,18 +180,10 @@ app.whenReady().then(() => {
   nextCheckTime = Date.now() + UPDATE_INTERVAL_MS
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
