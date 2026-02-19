@@ -2415,15 +2415,34 @@ function setupEventListeners() {
 
 const AERATION_BUBBLE_COUNTS = [5, 10, 15, 20, 25, 30];
 
+// Left-% positions for each airstone (1-indexed by level), placed in plant gaps
+const AIRSTONE_POSITIONS = [8, 25, 40, 63, 80];
+
+function updateAirstoneVisuals(tank, level) {
+  AIRSTONE_POSITIONS.forEach((pos, i) => {
+    let wrap = document.getElementById(`airstone-wrap-${i}`);
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = `airstone-wrap-${i}`;
+      wrap.className = 'airstone-wrap';
+      wrap.style.left = pos + '%';
+      wrap.innerHTML =
+        '<div class="airstone-tube"></div>' +
+        '<div class="airstone-pipe"></div>' +
+        '<div class="airstone-stone"></div>';
+      tank.appendChild(wrap);
+    }
+    wrap.style.display = (i < level) ? 'flex' : 'none';
+  });
+}
+
 function generateBubbles(count) {
   const tank = document.getElementById('tank');
   tank.querySelectorAll('.bubble').forEach(b => b.remove());
   const level = state?.aeration?.level ?? 0;
   const n = count ?? AERATION_BUBBLE_COUNTS[level] ?? 5;
 
-  // Show/hide airstone based on aeration level
-  const airstoneWrap = document.getElementById('airstone-wrap');
-  if (airstoneWrap) airstoneWrap.style.display = level > 0 ? 'flex' : 'none';
+  updateAirstoneVisuals(tank, level);
 
   if (level > 0) {
     // Inject a dynamic keyframe so bubbles rise straight within the tube
@@ -2443,7 +2462,6 @@ function generateBubbles(count) {
         100%         { bottom: 100%;            transform: translateX(var(--bx, 0px)); opacity: 0;   }
       }`;
   } else {
-    // Remove dynamic override so the default straight-rise animation is used
     document.getElementById('bubble-rise-dynamic')?.remove();
   }
 
@@ -2454,8 +2472,9 @@ function generateBubbles(count) {
     bubble.style.width  = size + 'px';
     bubble.style.height = size + 'px';
     if (level > 0) {
-      // Cluster within tube; assign random drift for dispersion above tube exit
-      bubble.style.left = (78.5 + Math.random() * 1.5) + '%';
+      // Distribute bubbles evenly across active airstones
+      const airstonePos = AIRSTONE_POSITIONS[i % level];
+      bubble.style.left = (airstonePos - 0.5 + Math.random()) + '%';
       bubble.style.setProperty('--bx', ((Math.random() - 0.5) * 80) + 'px');
     } else {
       bubble.style.left = (5 + Math.random() * 90) + '%';

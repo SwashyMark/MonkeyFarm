@@ -248,11 +248,11 @@
       }
 
       /* ── AIRSTONE ── */
-      #airstone-wrap {
-        position: absolute; left: 79%; top: 0; bottom: 14px; z-index: 1;
+      .airstone-wrap {
+        position: absolute; top: 0; bottom: 14px; z-index: 1;
         pointer-events: none; flex-direction: column; align-items: center; display: none;
       }
-      #airstone-tube {
+      .airstone-tube {
         position: absolute; top: 50px; bottom: 0;
         left: 50%; transform: translateX(-50%);
         width: 30px;
@@ -261,13 +261,13 @@
         border-radius: 3px;
         z-index: 0;
       }
-      #airstone-pipe {
+      .airstone-pipe {
         width: 4px; flex: 1; position: relative; z-index: 1;
         background: rgba(160,210,240,0.10);
         border: 1px solid rgba(160,210,240,0.20);
         border-radius: 2px;
       }
-      #airstone-stone {
+      .airstone-stone {
         width: 16px; height: 9px; position: relative; z-index: 1;
         background: linear-gradient(to bottom, #70808a, #4a5560);
         border-radius: 3px 3px 2px 2px;
@@ -1000,11 +1000,6 @@
 
         <!-- 60%: lone tall centerpiece seaweed -->
         <div class="sw" style="left:60%;  width:4px;  height:178px; background:linear-gradient(to top,#0a3d18,#1a7a34); animation:sway-l 5.2s ease-in-out infinite; animation-delay:-3.1s;"></div>
-      </div>
-      <div id="airstone-wrap">
-        <div id="airstone-tube"></div>
-        <div id="airstone-pipe"></div>
-        <div id="airstone-stone"></div>
       </div>
       <div id="tank-tab-bar">
         <button class="tank-tab active" id="tab-tank">🌊 Tank</button>
