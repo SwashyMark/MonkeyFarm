@@ -2427,9 +2427,9 @@ function generateBubbles(count) {
 
   if (level > 0) {
     // Inject a dynamic keyframe so bubbles rise straight within the tube
-    // until 28px from the tank top, then drift outward via --bx per bubble.
+    // until 50px from the tank top, then drift outward via --bx per bubble.
     const tankH = tank.clientHeight || 400;
-    const breakPct = Math.round((tankH - 28) / tankH * 100);
+    const breakPct = Math.round((tankH - 50) / tankH * 100);
     let dynStyle = document.getElementById('bubble-rise-dynamic');
     if (!dynStyle) {
       dynStyle = document.createElement('style');
@@ -2439,7 +2439,7 @@ function generateBubbles(count) {
     dynStyle.textContent = `
       @keyframes bubble-rise {
         0%           { bottom: 0;               transform: translateX(0);              opacity: 0.7; }
-        ${breakPct}% { bottom: calc(100% - 28px); transform: translateX(0);           opacity: 0.7; }
+        ${breakPct}% { bottom: calc(100% - 50px); transform: translateX(0);           opacity: 0.7; }
         100%         { bottom: 100%;            transform: translateX(var(--bx, 0px)); opacity: 0;   }
       }`;
   } else {
