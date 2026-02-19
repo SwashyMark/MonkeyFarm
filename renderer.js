@@ -420,6 +420,8 @@ let fpsLastTime = 0;
 let fpsFrameCount = 0;
 let fpsWindowStart = 0;
 let renderDt = 25; // ms since last render frame, used for delta-time movement
+let fpsLowSince = null;        // timestamp when FPS first dropped below 30
+let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
 
 // ─────────────────────────────────────────────
 // 5. PERSISTENCE
@@ -1670,10 +1672,24 @@ function renderAll() {
   fpsLastTime = now;
   fpsFrameCount++;
   if (now - fpsWindowStart >= 1000) {
+    const currentFps = fpsFrameCount;
     const el = document.getElementById('fps-value');
-    if (el) el.textContent = fpsFrameCount;
+    if (el) el.textContent = currentFps;
     fpsFrameCount = 0;
     fpsWindowStart = now;
+
+    if (fpsStressPopulation === null) {
+      if (currentFps < 30) {
+        if (fpsLowSince === null) fpsLowSince = now;
+        else if (now - fpsLowSince >= 5000) {
+          fpsStressPopulation = state.monkeys.length;
+          const stressEl = document.getElementById('fps-stress-pop');
+          if (stressEl) stressEl.textContent = fpsStressPopulation;
+        }
+      } else {
+        fpsLowSince = null;
+      }
+    }
   }
 
   renderHeader();
