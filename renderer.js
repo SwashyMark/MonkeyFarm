@@ -584,13 +584,11 @@ function migrateState(loaded) {
 // 6. STATE HELPERS
 // ─────────────────────────────────────────────
 function addLog(msg, group = null, tankId = undefined) {
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const showLabel = tankId !== undefined && state.tanks && state.tanks.length > 1;
-  const label = showLabel ? ` [T${tankId + 1}]` : '';
-  const displayMsg = msg + label;
-  const groupKey = (group ?? msg) + label;
-  state.log.unshift({ msg: displayMsg, time: timeStr, isNew: true, group: groupKey });
+  const label = showLabel ? `[T${tankId + 1}] ` : '';
+  const displayMsg = label + msg;
+  const groupKey = label + (group ?? msg);
+  state.log.unshift({ msg: displayMsg, isNew: true, group: groupKey });
   if (state.log.length > 80) state.log.pop();
 }
 
@@ -2104,8 +2102,8 @@ function renderEventLog() {
     return;
   }
   const firstEntry = entries[0];
-  if (container._lastTop === firstEntry.msg + firstEntry.time) return;
-  container._lastTop = firstEntry.msg + firstEntry.time;
+  if (container._lastTop === firstEntry.msg) return;
+  container._lastTop = firstEntry.msg;
 
   // Group consecutive entries with the same message
   const grouped = [];
@@ -2120,7 +2118,7 @@ function renderEventLog() {
 
   container.innerHTML = grouped.map((e, i) =>
     `<div class="log-entry ${i === 0 && e.isNew ? 'new' : ''}">
-      <span class="log-time">${e.time}</span> ${e.count > 1 ? `${e.count}x ` : ''}${e.count > 1 ? e.group : e.msg}
+      ${e.count > 1 ? `${e.count}x ` : ''}${e.count > 1 ? e.group : e.msg}
     </div>`
   ).join('');
   entries.forEach(e => { e.isNew = false; });
