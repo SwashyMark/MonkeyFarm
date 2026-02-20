@@ -15,6 +15,8 @@ function randRange(min, max) { return min + Math.random() * (max - min); }
 
 // Per-monkey per-second depletion (scales with alive count)
 const FOOD_DRAIN_PER   = 0.004;  // per alive non-egg monkey
+const MAX_TANK_POPULATION = 500;  // hard cap on alive monkeys per tank
+
 const OXYGEN_DRAIN_PER = 0.002;
 const CLEAN_DRAIN_PER  = 0.001;
 const DEAD_DRAIN_PER   = 0.008;  // extra cleanliness drain per dead body
@@ -66,10 +68,109 @@ const FEEDER_LEVELS = [
   { name: 'Industrial', upgradeCost: 150, durationMin:  300_000, durationMax:  600_000, maxFoodBonus: 50, passiveRegen: 3.0 },
 ];
 
-const NAMES = [
-  'Bubbles','Splash','Coral','Sandy','Finn','Nemo','Dory','Pearl',
-  'Shelly','Wave','Marina','Crest','Ripple','Tide','Zara','Rex',
-  'Luna','Sol','Mist','Brook','Pebble','Drift','Cove','Bay',
+const NAMES_M = [
+  'Finn','Nemo','Rex','Sol','Tide','Drift','Crest','Bay','Atlas','Cove',
+  'Reef','Marlin','Kelp','Sting','Blaze','Pike','Crag','Triton','Comet','Flint',
+  'Surge','Brine','Torrent','Squall','Eddy','Mako','Spire','Dune','Halo','Silt',
+  'Zale','Nereid','Shoal','Gyre','Atoll','Cay','Firth','Weir','Comber','Billow',
+  'Spume','Wake','Keel','Helm','Prow','Capstan','Anchor','Lagoon','Riffle','Swash',
+  'Breaker','Swell','Spray','Froth','Trough','Jib','Boom','Flume','Fathom','Depth',
+  'Ridge','Cliff','Bluff','Channel','Gorge','Glen','Vale','Dell','Hollow','Fell',
+  'Tor','Scree','Dingle','Beck','Burn','Rill','Fen','Marsh','Moor','Heath',
+  'Pool','Tarn','Rapid','Cascade','Canyon','Ravine','Shore','Strand','Ford','Fjord',
+  'Zephyr','Gust','Gale','Storm','Thunder','Bolt','Flash','Spark','Ember','Char',
+  'Coal','Cinder','Slag','Ore','Gravel','Shale','Basalt','Shard','Flake','Spar',
+  'Beam','Stave','Rod','Shaft','Hub','Crown','Peak','Summit','Apex','Tine',
+  'Prong','Barb','Talon','Claw','Fang','Tusk','Horn','Spike','Quill','Gill',
+  'Briar','Thorn','Sedge','Reed','Alder','Birch','Elm','Oak','Rowan','Yew',
+  'Holly','Hazel','Cedar','Spruce','Fir','Larch','Gorse','Ajax','Boreas','Barnacle',
+  'Beluga','Boulder','Brack','Brant','Buoy','Calder','Caleb','Camden','Castor','Cepheus',
+  'Chrome','Cipher','Cirque','Clam','Cobalt','Colm','Conch','Cormorant','Corsair','Cray',
+  'Creek','Crix','Crux','Curlew','Cyprian','Dagger','Dalton','Damien','Darby','Darius',
+  'Dawson','Declan','Delmar','Dexter','Dipper','Dirk','Dorado','Dover','Drax','Dredge',
+  'Dunmore','Earl','Easton','Ebb','Eel','Egret','Eldon','Eldric','Elgin','Emmet',
+  'Emrys','Eoin','Ethan','Everett','Falcon','Farrow','Fenwick','Ferric','Finch','Finley',
+  'Fleck','Fleet','Floe','Floyd','Fluke','Foxton','Frith','Fulmar','Gannet','Garnet',
+  'Gavin','Gideon','Glaucus','Godwit','Grampus','Grebe','Gregor','Griffin','Gunnar','Gwaine',
+  'Gwydion','Hadley','Halyard','Hamble','Haran','Harding','Harlock','Harold','Hawse','Hawthorn',
+  'Haydon','Hazard','Helford','Henning','Heriot','Herring','Holt','Hooper','Hornby','Hudson',
+  'Humboldt','Huxley','Hydrus','Idris','Ingram','Inver','Irvine','Isham','Iver','Jackal',
+  'Jagger','Jarvis','Jasper','Jetsam','Jolly','Jonah','Jules','Junco','Kale','Kestrel',
+  'Kite','Knox','Koan','Kombu','Kraken','Laird','Lance','Landis','Langley','Lanyard',
+  'Larne','Latimer','Leach','Ledger','Leighton','Leland','Lennox','Leo','Lichen','Loch',
+  'Lomond','Lorimer','Lorne','Lucas','Lupin','Luther','Lyndon','Mace','Madoc','Magnus',
+  'Malin','Maltby','Manx','Marcus','Marden','Malkin','Marlow','Mason','Maxim','Merrow',
+  'Minnow','Miro','Montague','Morgan','Morton','Muir','Murdoch','Murray','Nautilus','Nero',
+  'Newton','Nils','Ninian','Niven','Norris','Oarsman','Oberon','Oceanus','Oliver','Olm',
+  'Orion','Ormsby','Osbert','Oscar','Ossian','Oswald','Otter','Padstow','Parr','Paxton',
+  'Pemberton','Peregrine','Perrin','Phin','Picton','Pipit','Plover','Pollack','Poseidon','Prawn',
+  'Preston','Probus','Puffin','Quincy','Quinn','Quint','Raider','Raleigh','Rampart','Ransome',
+  'Rayner','Redstart','Rhys','Ridley','Rigo','Rimmer','Ripon','Riven','Roach','Robart',
+  'Robson','Rock','Rogan','Roland','Romsey','Rook','Ross','Rother','Rudd','Rupert',
+  'Ruskin','Rutland','Ryburn','Salter','Salmon','Sandpiper','Sark','Scallop','Scute','Seabird',
+  'Seaton','Selby','Selkirk','Sennon','Severn','Shearwater','Sherman','Sherwood','Sholto','Silas',
+  'Simon','Sinclair','Sirdar','Skerry','Skua','Slade','Slater','Smew','Snipe','Solomon',
+  'Sparrowhawk','Spencer','Spinner','Stour','Striker','Strome','Sullivan','Svensson','Syme','Talbot',
+  'Tanner','Tarbert','Taran','Tarquin','Tavish','Tenby','Thane','Thistle','Thorne','Thornton',
+  'Thurston','Tierce','Tilbury','Tintagel','Tobias','Tolan','Tomas','Torbin','Torque','Torrin',
+  'Tredegar','Tremaine','Trevelyan','Trevise','Trevithick','Tristram','Troon','Tulloch','Tunny','Turbot',
+  'Ulric','Upton','Urquhart','Usk','Valor','Vanquish','Veryan','Victor','Viking','Vince',
+  'Vulcan','Warwick','Wendell','Wesley','Whitby','Wicker','Wilbur','Wilmott','Wilton','Winn',
+  'Woodger','Worden','Wrayburn','Wymark','Wymond','Yarrow','Yates','Yorick','Yorke','Zachary',
+  'Zebedee','Zennor','Zephyros','Zinzan','Zoran','Zorro','Amos','Bale','Calum','Donal',
+  'Ewan','Fergus','Hamish','Iain','Jock','Liam','Niall','Ruari','Seamus','Tavita',
+];
+const NAMES_F = [
+  'Bubbles','Splash','Coral','Sandy','Dory','Pearl','Shelly','Wave','Marina','Ripple',
+  'Zara','Luna','Mist','Brook','Pebble','Nixie','Selene','Calypso','Azura','Briny',
+  'Tempest','Celia','Ondine','Mira','Sable','Luma','Vesper','Aqua','Siren','Nerissa',
+  'Coraline','Tidal','Cleo','Soleil','Shimmer','Naiad','Muriel','Oceana','Opaline','Orla',
+  'Pacifica','Pamina','Pelagic','Perla','Petra','Phoebe','Pippa','Pixie','Polaris','Portia',
+  'Posie','Prism','Questa','Rada','Raina','Rania','Rapture','Raya','Reina','Rhea',
+  'Rhiannon','Riona','Rissa','Robyn','Rona','Rosaline','Rowena','Roxane','Ruby','Runa',
+  'Saffron','Sage','Saline','Samara','Saoirse','Sapphire','Sarai','Savannah','Scarlett','Seabright',
+  'Seana','Sela','Selkie','Seraphina','Serena','Shae','Shanna','Shannon','Shara','Shasta',
+  'Sheen','Shona','Sierra','Silka','Silver','Silvia','Simone','Sinead','Siobhan','Skye',
+  'Skylar','Sloane','Sofia','Sonja','Sora','Soraya','Sorcha','Starla','Stella','Stormie',
+  'Sulis','Sunna','Sunny','Sunray','Surya','Svala','Sylva','Sylvie','Tahlia','Talia',
+  'Talitha','Tamsin','Tara','Taryn','Tassie','Teagan','Teal','Teale','Tessa','Thalia',
+  'Thea','Thetis','Tiana','Tilda','Tilly','Tinuiel','Tiona','Tirza','Topaz','Tora',
+  'Tracina','Trine','Triona','Triss','Trix','Tully','Tundra','Tyra','Ula','Ulva',
+  'Undine','Una','Ursula','Vada','Valeria','Valkyr','Vanna','Vega','Velvet','Vera',
+  'Verity','Verna','Vesna','Vesta','Viola','Violet','Vivienne','Vonni','Wanda','Waverly',
+  'Wendy','Willa','Willow','Winifred','Winona','Wren','Xanthe','Xara','Xena','Yael',
+  'Yara','Yeva','Yola','Yuki','Yvaine','Yvette','Zarya','Zelda','Zena','Zephyra',
+  'Zinnia','Ziva','Zofia','Zorah','Aelwen','Aerin','Agave','Ailbhe','Ailen','Ailish',
+  'Aine','Ainsley','Airlie','Aislinn','Alara','Alba','Alcyone','Aldea','Aleena','Aleria',
+  'Alessa','Aletta','Alexa','Allure','Alma','Almira','Alona','Alosa','Aluna','Alva',
+  'Alwen','Alys','Amara','Amaris','Amber','Amina','Amira','Anala','Anara','Andromeda',
+  'Aneira','Anela','Anemone','Anessa','Angharad','Anise','Anita','Anmer','Anna','Annalise',
+  'Annelie','Annette','Annis','Annora','Anona','Anwyn','Aoife','April','Arabella','Araceli',
+  'Araya','Arcadia','Ardea','Arethusa','Aria','Ariadne','Ariane','Ariel','Arina','Arista',
+  'Arla','Arlene','Arona','Arran','Arrosa','Aruna','Arwen','Arwyn','Aspen','Astra',
+  'Astrid','Atara','Athena','Audra','Aurela','Aurelie','Aurora','Aurore','Avelina','Avena',
+  'Avery','Aviana','Ayanna','Aylin','Azalea','Azaria','Azella','Azolla','Azrine','Baile',
+  'Bairbre','Bala','Balena','Barra','Bathea','Beatha','Beira','Belinda','Bena','Berit',
+  'Berla','Bessa','Bethan','Bianca','Blair','Blanche','Blayne','Blossom','Blythe','Bonny',
+  'Branwen','Brea','Brede','Breia','Brenna','Briallen','Brianna','Brigid','Brigit','Brina',
+  'Britta','Bronagh','Bronwen','Bryn','Bryna','Brynja','Bryony','Cailin','Calantha','Calista',
+  'Calla','Callista','Cally','Caltha','Cambria','Camille','Candice','Candra','Capella','Cariosa',
+  'Carlin','Carlow','Carys','Cashla','Cass','Ceara','Cerise','Cerys','Chara','Charis',
+  'Ciara','Cinnabar','Circe','Clara','Claribel','Cliona','Colette','Constance','Cordelia','Corinna',
+  'Cosima','Cressida','Crysta','Dahlia','Daisy','Dalila','Damaris','Damia','Dara','Darcy',
+  'Daria','Darrow','Davina','Dawn','Deirdre','Delphine','Deryn','Deva','Diana','Diantha',
+  'Dina','Dolores','Dominica','Donna','Dorcha','Dove','Dulce','Dwyn','Dwynwen','Dysis',
+  'Eala','Eartha','Eibhlin','Eilidh','Eilinora','Eire','Eirene','Eirian','Eithne','Elena',
+  'Elene','Elika','Elora','Elspeth','Elva','Elvina','Elwen','Embla','Emerald','Emlyn',
+  'Emrynn','Enid','Enna','Enya','Eola','Eolande','Epona','Erinn','Erla','Esme',
+  'Ethna','Evaine','Evaline','Evanna','Evara','Eveleen','Eveline','Evelyn','Evenna','Evony',
+  'Fainche','Fala','Fallon','Fana','Fand','Fara','Faye','Feena','Fern','Ffion',
+  'Fiadh','Fiana','Finola','Fionnuala','Flavia','Fleur','Florae','Florin','Floss','Freya',
+  'Gaela','Galatea','Galia','Gelsey','Gemma','Genna','Ginevra','Glenna','Glenys','Gloria',
+  'Gloriana','Goldie','Grainne','Grania','Guinevere','Gwen','Gweneira','Gwendolyn','Gwenllian','Gwynn',
+  'Halcyon','Halla','Hana','Heather','Hedra','Heloise','Hespera','Hilde','Himari','Honora',
+  'Hypatia','Ida','Ildana','Ilena','Imara','Imogen','Ina','Inara','Inessa','Inga',
+  'Ingrid','Iolanthe','Iona','Iora','Irena','Iris','Isadora','Isolde','Ita','Ivy',
 ];
 
 // ── GENE DATA ────────────────────────────────
@@ -432,7 +533,7 @@ let fpsLowSince = null;        // timestamp when FPS first dropped below 30
 let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
 let paused = false;
 let pausedAt = 0;
-let limitViewToCap = localStorage.getItem('limitViewToCap') === '1';
+let limitViewToCap = localStorage.getItem('limitViewToCap') !== '0';  // default on
 
 // Returns the currently-viewed tank object
 function activeTank() { return state.tanks[state.activeTankId]; }
@@ -593,9 +694,59 @@ function addLog(msg, group = null, tankId = undefined) {
   if (state.log.length > 80) state.log.pop();
 }
 
-function pickName() {
+// ── SELL PRICING ─────────────────────────────────────────────────────────────
+const SELL_COLOR_VALUE = {
+  C_PINK: 5, C_GRN: 5, purple: 80, C_BLU: 60,
+  C_TRANS: 120, C_BIO: 150, C_GOLD: 400, C_VOID: 300,
+};
+
+function calcSellPrice(m) {
+  if (!m.dna) return 1;
+  let price = 5;
+  // Colour
+  price += SELL_COLOR_VALUE[resolveColorPhenotype(m.dna.body_color)] ?? 5;
+  // Tail
+  const tail = resolveAllele(m.dna.tail_shape, 'tail_shape');
+  if (tail === 'T_FAN') price += 20;
+  if (tail === 'T_DBL') price += 70;
+  // Metabolism
+  const met = resolveAllele(m.dna.metabolism, 'metabolism');
+  if (met === 'M_FAST') price += 25;
+  if (met === 'M_SLOW') price += 30;
+  // Constitution
+  const con = resolveAllele(m.dna.constitution, 'constitution');
+  if (con === 'H_IRON') price += 60;
+  if (con === 'H_SENS') price += 15;
+  // Longevity
+  const lon = resolveAllele(m.dna.longevity, 'longevity');
+  if (lon === 'L_ANC') price += 200;
+  if (lon === 'L_FLY') price += 20;
+  // Filter feeder
+  if (hasDominant(m.dna.filt, 'F')) price += 80;
+  // Generation bonus
+  if (m.generation > 1) price += Math.min((m.generation - 1) * 2, 40);
+  // Stage multiplier
+  const mult = { egg: 0.5, baby: 0.7, juvenile: 0.9, adult: 1.0 }[m.stage] ?? 1.0;
+  return Math.max(1, Math.round(price * mult));
+}
+
+function sellMonkey(id) {
+  const m = state.monkeys.find(m => m.id === id);
+  if (!m || !m.alive) return;
+  const price = calcSellPrice(m);
+  state.currency += price;
+  state.monkeys = state.monkeys.filter(m2 => m2.id !== id);
+  if (monkeyEls[id]) { monkeyEls[id].remove(); delete monkeyEls[id]; }
+  _popSignature = '';
+  addLog(`💰 ${m.name} sold for £${price}.`, null, m.tankId);
+  saveState();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function pickName(sex) {
+  const pool = sex === 'M' ? NAMES_M : NAMES_F;
   const used = new Set(state.monkeys.map(m => m.name));
-  const available = NAMES.filter(n => !used.has(n));
+  const available = pool.filter(n => !used.has(n));
   if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
   return 'Monkey #' + state.nextMonkeyId;
 }
@@ -604,10 +755,11 @@ function createMonkey(opts = {}) {
   const id = state.nextMonkeyId++;
   const now = Date.now();
   const dna = opts.dna || defaultDNA();
+  const sex = opts.sex || (Math.random() < 0.5 ? 'M' : 'F');
   const monkey = {
     id,
-    name: opts.name || pickName(),
-    sex: opts.sex || (Math.random() < 0.5 ? 'M' : 'F'),
+    name: opts.name || pickName(sex),
+    sex,
     generation: opts.generation || 1,
     stage: opts.stage || 'egg',
     bornAt: now,
@@ -761,7 +913,7 @@ function gameTick(dtMs) {
 
     if (!tank.eggsAdded) continue;
 
-    const aliveTank   = state.monkeys.filter(m => m.alive && m.tankId === tank.id);
+    const aliveTank   = state.monkeys.filter(m => m.alive && m.tankId === tank.id && !m.inStorage);
     const aliveNonEgg = aliveTank.filter(m => m.stage !== 'egg');
     const deadTank    = state.monkeys.filter(m => !m.alive && m.tankId === tank.id);
 
@@ -934,6 +1086,7 @@ function updateMonkeyHealth(m, dtSec, t) {
 }
 
 function updateMonkeyStage(m, tank) {
+  if (m.inStorage) return;
   const now = Date.now();
   const elapsed = now - m.stageStartTime;
   const effectiveElapsed = debugMode ? elapsed * debugSpeed : elapsed;
@@ -970,7 +1123,7 @@ function updateMonkeyStage(m, tank) {
 
 function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   if (female.pregnant) return;
-  if (fpsStressPopulation !== null && aliveMonkeys.length >= fpsStressPopulation) return;
+  if (aliveMonkeys.length >= MAX_TANK_POPULATION) return;
   const now = Date.now();
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
@@ -1014,7 +1167,7 @@ function processBirths(aliveMonkeys, tank) {
     const mb = getMasteryBonuses();
     const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
     for (let i = 0; i < count; i++) {
-      if (fpsStressPopulation !== null && aliveMonkeys.length >= fpsStressPopulation) break;
+      if (aliveMonkeys.length >= MAX_TANK_POPULATION) break;
       const dna = inheritGenes(m, father || m, usedFlakes);
       const baby = createMonkey({ generation: gen, dna, tankId: tank.id });
       // Build log tag: phenotype + expressed functional traits
@@ -1387,6 +1540,29 @@ function renderMonkeydex() {
 }
 
 let _popSignature = '';
+let _popCardEls   = {};  // id → { bar, hp, age, stg, preg } — cached after innerHTML build
+let _popSearch    = '';
+let _popStageFilter = { egg: true, baby: true, juvenile: true, adult: true, dead: true };
+let _tmSig        = '';
+let _tmEls        = {};  // tankId → cached dynamic element refs for tank manager
+
+function popSearchMatch(m, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  if (m.name.toLowerCase().includes(q)) return true;
+  if (m.dna) {
+    const phenotype = resolveColorPhenotype(m.dna.body_color);
+    const colourName = PHENOTYPE_DEFS[phenotype]?.name || phenotype;
+    if (colourName.toLowerCase().includes(q)) return true;
+    // Search all allele names across every locus
+    for (const geneId of ['body_color', 'tail_shape', 'metabolism', 'constitution', 'longevity', 'filt']) {
+      for (const code of m.dna[geneId]) {
+        if (alleleName(geneId, code).toLowerCase().includes(q)) return true;
+      }
+    }
+  }
+  return false;
+}
 
 function buildPopCard(m, now, hasMagnifier) {
   const stats = resolveStats(m);
@@ -1466,30 +1642,42 @@ function buildPopCard(m, now, hasMagnifier) {
     <div class="pop-card-health">❤ <span class="pop-bar" id="pop-bar-${m.id}">${healthBar}</span> <span class="pop-hp" id="pop-hp-${m.id}">${Math.round(m.health)}/${stats.maxHealth}</span></div>
     <div class="pop-traits">${traitsHtml !== null ? traitsHtml : traitsStr}</div>
     ${timeStr ? `<div class="pop-card-timer">${{egg:'🐠',baby:'🐟',juvenile:'🦐',adult:'💀'}[m.stage]||'⏱'} <span id="pop-stg-${m.id}">${timeStr}</span></div>` : ''}
+    ${m.alive ? (() => {
+      const price = calcSellPrice(m);
+      const storBtn = m.stage === 'egg' ? `<button class="btn inv-use-btn pop-action-btn" data-store-egg="${m.id}">📦 Store</button>` : '';
+      return `<div class="pop-sell-row">${storBtn}<button class="btn pop-sell-btn" data-sell-monkey="${m.id}">💰 £${price}</button></div>`;
+    })() : ''}
   </div>`;
 }
 
 function updatePopCard(m, now) {
   if (!m.alive) return; // dead cards are static
+  const els = _popCardEls[m.id];
+  if (!els) return;
 
-  const stats = resolveStats(m);
-  const filled = Math.max(0, Math.round((m.health / stats.maxHealth) * 10));
-  document.getElementById(`pop-bar-${m.id}`).textContent = '█'.repeat(filled) + '░'.repeat(10 - filled);
-  document.getElementById(`pop-hp-${m.id}`).textContent  = `${Math.round(m.health)}/${stats.maxHealth}`;
-
-  const ageMs = (now - m.bornAt) * (debugMode ? debugSpeed : 1);
-  document.getElementById(`pop-age-${m.id}`).textContent = fmtAge(ageMs);
-
-  const stgEl = document.getElementById(`pop-stg-${m.id}`);
-  if (stgEl && m.stageDuration) {
-    const eff = (now - m.stageStartTime) * (debugMode ? debugSpeed : 1);
-    stgEl.textContent = fmtMs(Math.max(0, m.stageDuration - eff) / (debugMode ? debugSpeed : 1));
+  // Health bar — dirty-check; resolveStats only runs when health actually changed
+  const hpRounded = Math.round(m.health);
+  if (els._lastHp !== hpRounded) {
+    els._lastHp = hpRounded;
+    const stats = resolveStats(m);
+    const filled = Math.max(0, Math.round((hpRounded / stats.maxHealth) * 10));
+    els.bar.textContent = '█'.repeat(filled) + '░'.repeat(10 - filled);
+    els.hp.textContent  = `${hpRounded}/${stats.maxHealth}`;
   }
 
-  const pregEl = document.getElementById(`pop-preg-${m.id}`);
-  if (pregEl && m.pregnantSince) {
+  // Age counter — always ticking
+  els.age.textContent = fmtAge((now - m.bornAt) * (debugMode ? debugSpeed : 1));
+
+  // Stage countdown
+  if (els.stg && m.stageDuration) {
+    const eff = (now - m.stageStartTime) * (debugMode ? debugSpeed : 1);
+    els.stg.textContent = fmtMs(Math.max(0, m.stageDuration - eff) / (debugMode ? debugSpeed : 1));
+  }
+
+  // Pregnancy countdown
+  if (els.preg && m.pregnantSince) {
     const eff = (now - m.pregnantSince) * (debugMode ? debugSpeed : 1);
-    pregEl.textContent = `🤰 ${fmtMs(Math.max(0, m.pregnancyDuration - eff) / (debugMode ? debugSpeed : 1))}`;
+    els.preg.textContent = `🤰 ${fmtMs(Math.max(0, m.pregnancyDuration - eff) / (debugMode ? debugSpeed : 1))}`;
   }
 }
 
@@ -1498,7 +1686,7 @@ function renderPopulation() {
   if (!view || !view.classList.contains('active')) return;
 
   const now        = paused ? pausedAt : Date.now();
-  const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId);
+  const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId && !m.inStorage);
   const aliveCount = tankMonkeys.filter(m => m.alive).length;
   const deadCount  = tankMonkeys.filter(m => !m.alive).length;
   document.getElementById('population-view-title').textContent =
@@ -1517,9 +1705,17 @@ function renderPopulation() {
     return (a.bornAt ?? 0) - (b.bornAt ?? 0);
   });
 
+  // Apply stage filter and search
+  const filtered = sorted.filter(m => {
+    const stageKey = m.alive ? m.stage : 'dead';
+    if (!_popStageFilter[stageKey]) return false;
+    return popSearchMatch(m, _popSearch);
+  });
+
   const hasMagnifier = state.magnifyingGlassMode && state.inventory.magnifyingGlass > 0;
-  const sig = sorted.map(m => `${m.id}:${m.stage}:${m.alive?1:0}:${m.pregnant?1:0}`).join('|')
-    + `|m:${hasMagnifier ? 1 : 0}`;
+  const filterKey = Object.values(_popStageFilter).map(v => v ? '1' : '0').join('');
+  const sig = filtered.map(m => `${m.id}:${m.stage}:${m.alive?1:0}:${m.pregnant?1:0}`).join('|')
+    + `|m:${hasMagnifier ? 1 : 0}|f:${filterKey}|s:${_popSearch}`;
 
   if (sig !== _popSignature) {
     _popSignature = sig;
@@ -1527,7 +1723,7 @@ function renderPopulation() {
     const stageLabels = { egg: '🥚 Eggs', baby: '🐠 Babies', juvenile: '🐟 Juveniles', adult: '🦐 Adults' };
     const byStage = {};
     const dead = [];
-    for (const m of sorted) {
+    for (const m of filtered) {
       if (!m.alive) { dead.push(m); continue; }
       (byStage[m.stage] = byStage[m.stage] || []).push(m);
     }
@@ -1542,9 +1738,23 @@ function renderPopulation() {
       html += `<div class="pop-section-header">💀 Deceased<span class="pop-section-count">${dead.length}</span></div>`;
       html += dead.map(m => buildPopCard(m, now, hasMagnifier)).join('');
     }
+    if (!html) {
+      html = `<div class="pop-empty">${_popSearch ? 'No results for "' + _popSearch + '".' : 'No sea monkeys match the current filters.'}</div>`;
+    }
     list.innerHTML = html;
+    // Cache sub-element refs so updatePopCard never calls getElementById
+    _popCardEls = {};
+    for (const m of filtered) {
+      _popCardEls[m.id] = {
+        bar:  document.getElementById(`pop-bar-${m.id}`),
+        hp:   document.getElementById(`pop-hp-${m.id}`),
+        age:  document.getElementById(`pop-age-${m.id}`),
+        stg:  document.getElementById(`pop-stg-${m.id}`),
+        preg: document.getElementById(`pop-preg-${m.id}`),
+      };
+    }
   } else {
-    for (const m of sorted) updatePopCard(m, now);
+    for (const m of filtered) updatePopCard(m, now);
   }
 }
 
@@ -1787,6 +1997,7 @@ function renderAll() {
   renderDebugPanel();
   renderMonkeydex();
   renderPopulation();
+  renderTankManager();
   renderEventLog();
   renderStatusBar();
   renderNotifications();
@@ -1908,8 +2119,8 @@ function renderGauges() {
     const row = container.querySelector(`[data-cond-tank="${t.id}"]`);
     if (row) row.classList.toggle('active', t.id === state.activeTankId);
 
-    const tankAlive = state.monkeys.filter(m => m.alive && m.tankId === t.id).length;
-    const atCapacity = fpsStressPopulation !== null && tankAlive >= fpsStressPopulation;
+    const tankAlive = state.monkeys.filter(m => m.alive && m.tankId === t.id && !m.inStorage).length;
+    const atCapacity = tankAlive >= MAX_TANK_POPULATION;
     const warnEl = document.getElementById(`cap-warn-${t.id}`);
     if (warnEl) warnEl.style.display = atCapacity ? '' : 'none';
 
@@ -1981,7 +2192,7 @@ function renderMonkeys() {
   const H = tankRect.height || 490;
 
   // Build the set of monkey IDs to render — optionally cap alive count to fpsStressPopulation
-  const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId);
+  const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId && !m.inStorage);
   const aliveVisible = (limitViewToCap && fpsStressPopulation !== null)
     ? tankMonkeys.filter(m => m.alive).slice(0, fpsStressPopulation)
     : tankMonkeys.filter(m => m.alive);
@@ -2017,55 +2228,58 @@ function renderMonkeys() {
       const emojiSpan = document.createElement('span');
       emojiSpan.className = 'monkey-emoji';
       emojiSpan.style.display = 'inline-block';
+      el._emojiSpan = emojiSpan;  // cache — avoids querySelector every frame
       el.appendChild(emojiSpan);
 
       const tip = document.createElement('div');
       tip.className = 'monkey-tooltip';
+      el._tip = tip;  // cache — avoids querySelector every frame
       el.appendChild(tip);
+
+      // Phenotype styles — DNA never changes, apply once at creation
+      el._tailCode = m.dna ? resolveAllele(m.dna.tail_shape, 'tail_shape') : 'T_STD';
+      const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
+      const def = PHENOTYPE_DEFS[phenotype] || {};
+      if (def.opacity) {
+        emojiSpan.style.filter  = def.filterStr || '';
+        emojiSpan.style.opacity = String(def.opacity);
+      } else {
+        el.style.filter     = def.filterStr || '';
+        el.style.textShadow = def.shadow    || '';
+      }
 
       container.appendChild(el);
       monkeyEls[m.id] = el;
     }
 
-    // Update class
-    el.className = 'monkey ' + (m.alive ? m.stage : 'dead');
-    if (m.pregnant) el.className += ' pregnant';
+    // Lazy stats — computed at most once per monkey per frame, only when needed
+    let _stats = null;
+    const getStats = () => { if (!_stats) _stats = resolveStats(m); return _stats; };
 
-    // Tail shape determines emoji rendering
-    const tailCode = m.dna ? resolveAllele(m.dna.tail_shape, 'tail_shape') : 'T_STD';
-    const baseEmoji = getMonkeyEmoji(m);
-    const emojiSpan = el.querySelector('.monkey-emoji');
-    if (emojiSpan) {
-      emojiSpan.textContent = (tailCode === 'T_DBL' && m.alive) ? baseEmoji + baseEmoji : baseEmoji;
+    // Dirty-check className
+    const newClass = 'monkey ' + (m.alive ? m.stage : 'dead') + (m.pregnant ? ' pregnant' : '');
+    if (el.className !== newClass) el.className = newClass;
+
+    // Emoji — dirty-check by stage+alive; tail/DNA never change
+    const emojiSig = m.stage + (m.alive ? '1' : '0');
+    if (el._emojiSig !== emojiSig) {
+      el._emojiSig = emojiSig;
+      const tailCode = el._tailCode;
+      const baseEmoji = getMonkeyEmoji(m);
+      el._emojiSpan.textContent = (tailCode === 'T_DBL' && m.alive) ? baseEmoji + baseEmoji : baseEmoji;
       if (tailCode === 'T_FAN' && m.alive) {
         const baseSizes = { egg: 18, baby: 16, juvenile: 19, adult: 22, dead: 18 };
-        emojiSpan.style.fontSize = ((baseSizes[m.stage] || 20) + 4) + 'px';
+        el._emojiSpan.style.fontSize = ((baseSizes[m.stage] || 20) + 4) + 'px';
       } else {
-        emojiSpan.style.fontSize = '';
+        el._emojiSpan.style.fontSize = '';
       }
     }
 
-    // Phenotype visuals
-    const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
-    const def = PHENOTYPE_DEFS[phenotype];
-    if (emojiSpan) {
-      if (def?.opacity) {
-        el.style.filter      = '';
-        el.style.textShadow  = '';
-        emojiSpan.style.filter  = def.filterStr || '';
-        emojiSpan.style.opacity = String(def.opacity);
-      } else {
-        el.style.filter      = def?.filterStr || '';
-        el.style.textShadow  = def?.shadow    || '';
-        emojiSpan.style.filter  = '';
-        emojiSpan.style.opacity = '';
-      }
-    }
-
-    // Tooltip
-    const stats = resolveStats(m);
-    const tip = el.querySelector('.monkey-tooltip');
-    if (tip) {
+    // Tooltip — dirty-check; skip heavy gene resolution when nothing changed
+    const tipSig = Math.round(m.health) + (m.pregnant ? 'p' : '') + (state.magnifyingGlassMode ? 'M' : '');
+    if (el._tipSig !== tipSig) {
+      el._tipSig = tipSig;
+      const stats = getStats();
       const filled = Math.round((m.health / stats.maxHealth) * 10);
       const healthBar = '█'.repeat(Math.max(0, filled)) + '░'.repeat(Math.max(0, 10 - filled));
       const hasMagnifier = state.magnifyingGlassMode && state.inventory.magnifyingGlass > 0;
@@ -2090,7 +2304,7 @@ function renderMonkeys() {
           geneInfo = ' | ' + parts.join(', ');
         }
       }
-      tip.textContent = `${m.name} (${m.sex}) | ❤ ${healthBar} | Gen ${m.generation}${m.pregnant ? ' | 🤰' : ''}${geneInfo}`;
+      el._tip.textContent = `${m.name} (${m.sex}) | ❤ ${healthBar} | Gen ${m.generation}${m.pregnant ? ' | 🤰' : ''}${geneInfo}`;
     }
 
     // Ensure wander state exists (for monkeys loaded from save)
@@ -2105,15 +2319,17 @@ function renderMonkeys() {
     if (!m.alive) {
       if (!el._fell) {
         el._fell = true;
-        el.style.transition = 'top 1.5s ease-in, transform 1.5s ease-in';
-        el.style.top  = (H - 38) + 'px';
-        el.style.transform = 'rotate(90deg)';
+        // Individual CSS properties (translate + rotate) compose independently with
+        // CSS animations that use transform — no conflict with egg-wiggle/pregnant-pulse
+        el.style.transition = 'translate 1.5s ease-in, rotate 1.5s ease-in';
+        el.style.translate = `${m._x}px ${H - 38}px`;
+        el.style.rotate    = '90deg';
       }
-      if (emojiSpan) emojiSpan.style.transform = '';
+      el._emojiSpan.style.transform = '';
     } else {
       el.style.transition = '';
-      el.style.transform  = '';
 
+      const stats = getStats();
       const baseSpeeds = { egg: 0, baby: 40, juvenile: 55, adult: 70 }; // px/sec
       const speed = (baseSpeeds[m.stage] || 0) * stats.moveSpeed * (stats.isFF ? 0.5 : 1);
       const dt = paused ? 0 : renderDt / 1000; // seconds
@@ -2136,16 +2352,201 @@ function renderMonkeys() {
           const wobble = Math.sin(m._phase) * 7;
           const finalX = Math.max(0, Math.min(W - 32, m._x + (-ny) * wobble));
           const finalY = Math.max(0, Math.min(H - 32, m._y + nx * wobble));
-          el.style.left = finalX + 'px';
-          el.style.top  = finalY + 'px';
-
-          if (emojiSpan) emojiSpan.style.transform = nx > 0 ? 'scaleX(-1)' : '';
+          // translate (individual property) composes with CSS animations using transform
+          el.style.translate = `${finalX}px ${finalY}px`;
+          el._emojiSpan.style.transform = nx > 0 ? 'scaleX(-1)' : '';
         }
       } else {
-        el.style.left = (m._x || 50) + 'px';
-        el.style.top  = (m._y || 50) + 'px';
-        if (emojiSpan) emojiSpan.style.transform = '';
+        el.style.translate = `${m._x || 50}px ${m._y || 50}px`;
+        el._emojiSpan.style.transform = '';
       }
+    }
+  }
+}
+
+function renderTankManager() {
+  const view = document.getElementById('tank-manager-view');
+  if (!view || !view.classList.contains('active')) return;
+
+  const now = paused ? pausedAt : Date.now();
+
+  // Signature covers things that need a full rebuild: tank count/names, LS levels, pop counts, active tank
+  const sig = state.tanks.map(t => {
+    const alive = state.monkeys.filter(m => m.alive && m.tankId === t.id && !m.inStorage);
+    const dead  = state.monkeys.filter(m => !m.alive && m.tankId === t.id).length;
+    const stageCounts = ['egg','baby','juvenile','adult'].map(s => alive.filter(m => m.stage === s).length).join(',');
+    return `${t.id}:${t.name}:${t.aeration.level}:${t.skimmer.level}:${t.feeder.level}:${stageCounts}:${dead}:${t.id === state.activeTankId ? 1 : 0}`;
+  }).join('|');
+
+  const list = document.getElementById('tank-manager-list');
+
+  if (sig !== _tmSig) {
+    _tmSig = sig;
+    _tmEls = {};
+
+    list.innerHTML = state.tanks.map(t => {
+      const tankMonkeys = state.monkeys.filter(m => m.tankId === t.id && !m.inStorage);
+      const alive = tankMonkeys.filter(m => m.alive);
+      const dead  = tankMonkeys.filter(m => !m.alive).length;
+      const stageCounts = { egg: 0, baby: 0, juvenile: 0, adult: 0 };
+      for (const m of alive) stageCounts[m.stage] = (stageCounts[m.stage] || 0) + 1;
+
+      const maxFood  = getMaxFood(t);
+      const maxOxy   = getMaxOxygen(t);
+      const maxClean = getMaxCleanliness(t);
+      const foodPct  = Math.min(100, (t.food  / maxFood)  * 100);
+      const oxyPct   = Math.min(100, (t.oxygen / maxOxy)  * 100);
+      const cleanPct = Math.min(100, (t.cleanliness / maxClean) * 100);
+
+      const aerLvl  = AERATION_LEVELS[t.aeration.level];
+      const skimLvl = SKIMMER_LEVELS[t.skimmer.level];
+      const feedLvl = FEEDER_LEVELS[t.feeder.level];
+
+      const timerStr = (addon, dur) => {
+        if (!addon.startedAt) return '—';
+        const rem = Math.max(0, dur - (now - addon.startedAt) * (debugMode ? debugSpeed : 1));
+        return fmtMs(rem / (debugMode ? debugSpeed : 1));
+      };
+      const timerPct = (addon, dur) => {
+        if (!addon.startedAt) return 0;
+        return Math.max(0, (dur - (now - addon.startedAt) * (debugMode ? debugSpeed : 1)) / dur * 100);
+      };
+
+      const aerPct  = timerPct(t.aeration, t.aeration.duration);
+      const skimPct = timerPct(t.skimmer,  t.skimmer.duration);
+      const feedPct = timerPct(t.feeder,   t.feeder.duration);
+
+      const isActive = t.id === state.activeTankId;
+
+      const badge = (emoji, count) =>
+        `<span class="tm-pop-badge${count === 0 ? ' zero' : ''}">${emoji} ${count}</span>`;
+
+      return `<div class="tm-card${isActive ? ' active-tank' : ''}">
+        <div class="tm-card-header">
+          <span class="tm-tank-name" data-tm-name="${t.id}" title="Click to rename">${t.name}</span>
+          ${isActive
+            ? '<span class="tm-active-badge">Active</span>'
+            : `<button class="tm-switch-btn" data-tm-switch="${t.id}">Switch</button>`}
+        </div>
+
+        <div>
+          <div class="tm-section-label">Conditions</div>
+          <div class="tm-gauges">
+            <div class="tm-gauge-row">
+              <span class="tm-gauge-icon">🍔</span>
+              <div class="tm-gauge-bar-wrap">
+                <div class="tm-gauge-bar food${t.food < 30 ? ' danger' : ''}" id="tm-gbar-food-${t.id}" style="width:${foodPct.toFixed(1)}%"></div>
+              </div>
+              <span class="tm-gauge-val" id="tm-gval-food-${t.id}">${Math.round(t.food)}/${maxFood}</span>
+            </div>
+            <div class="tm-gauge-row">
+              <span class="tm-gauge-icon">💨</span>
+              <div class="tm-gauge-bar-wrap">
+                <div class="tm-gauge-bar oxy${t.oxygen < 30 ? ' danger' : ''}" id="tm-gbar-oxy-${t.id}" style="width:${oxyPct.toFixed(1)}%"></div>
+              </div>
+              <span class="tm-gauge-val" id="tm-gval-oxy-${t.id}">${Math.round(t.oxygen)}/${maxOxy}</span>
+            </div>
+            <div class="tm-gauge-row">
+              <span class="tm-gauge-icon">🧹</span>
+              <div class="tm-gauge-bar-wrap">
+                <div class="tm-gauge-bar clean${t.cleanliness < 30 ? ' danger' : ''}" id="tm-gbar-clean-${t.id}" style="width:${cleanPct.toFixed(1)}%"></div>
+              </div>
+              <span class="tm-gauge-val" id="tm-gval-clean-${t.id}">${Math.round(t.cleanliness)}/${maxClean}</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="tm-section-label">Population — ${alive.length} alive${dead ? ', ' + dead + ' dead' : ''}</div>
+          <div class="tm-pop">
+            ${badge('🥚', stageCounts.egg)}
+            ${badge('🐠', stageCounts.baby)}
+            ${badge('🐟', stageCounts.juvenile)}
+            ${badge('🦐', stageCounts.adult)}
+            ${dead > 0 ? badge('💀', dead) : ''}
+          </div>
+        </div>
+
+        <div>
+          <div class="tm-section-label">Life Support</div>
+          <div class="tm-ls">
+            <div class="tm-ls-item">
+              <div class="tm-ls-title">💨 Aeration</div>
+              <div class="tm-ls-level">${aerLvl.name}</div>
+              <div class="tm-ls-timer" id="tm-aer-timer-${t.id}">${timerStr(t.aeration, t.aeration.duration)}</div>
+              <div class="tm-ls-bar-wrap"><div class="tm-ls-bar" id="tm-aer-bar-${t.id}" style="width:${aerPct.toFixed(1)}%"></div></div>
+            </div>
+            <div class="tm-ls-item">
+              <div class="tm-ls-title">🧹 Skimmer</div>
+              <div class="tm-ls-level">${skimLvl.name}</div>
+              <div class="tm-ls-timer" id="tm-skim-timer-${t.id}">${timerStr(t.skimmer, t.skimmer.duration)}</div>
+              <div class="tm-ls-bar-wrap"><div class="tm-ls-bar" id="tm-skim-bar-${t.id}" style="width:${skimPct.toFixed(1)}%"></div></div>
+            </div>
+            <div class="tm-ls-item">
+              <div class="tm-ls-title">🍽️ Feeder</div>
+              <div class="tm-ls-level">${feedLvl.name}</div>
+              <div class="tm-ls-timer" id="tm-feed-timer-${t.id}">${timerStr(t.feeder, t.feeder.duration)}</div>
+              <div class="tm-ls-bar-wrap"><div class="tm-ls-bar" id="tm-feed-bar-${t.id}" style="width:${feedPct.toFixed(1)}%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Cache dynamic element refs to avoid getElementById each frame
+    _tmEls = {};
+    for (const t of state.tanks) {
+      _tmEls[t.id] = {
+        gbarFood:  document.getElementById(`tm-gbar-food-${t.id}`),
+        gvalFood:  document.getElementById(`tm-gval-food-${t.id}`),
+        gbarOxy:   document.getElementById(`tm-gbar-oxy-${t.id}`),
+        gvalOxy:   document.getElementById(`tm-gval-oxy-${t.id}`),
+        gbarClean: document.getElementById(`tm-gbar-clean-${t.id}`),
+        gvalClean: document.getElementById(`tm-gval-clean-${t.id}`),
+        aerTimer:  document.getElementById(`tm-aer-timer-${t.id}`),
+        aerBar:    document.getElementById(`tm-aer-bar-${t.id}`),
+        skimTimer: document.getElementById(`tm-skim-timer-${t.id}`),
+        skimBar:   document.getElementById(`tm-skim-bar-${t.id}`),
+        feedTimer: document.getElementById(`tm-feed-timer-${t.id}`),
+        feedBar:   document.getElementById(`tm-feed-bar-${t.id}`),
+      };
+    }
+  } else {
+    // Per-frame: update gauges and LS timers using cached refs
+    for (const t of state.tanks) {
+      const els = _tmEls[t.id];
+      if (!els) continue;
+
+      const maxFood  = getMaxFood(t);
+      const maxOxy   = getMaxOxygen(t);
+      const maxClean = getMaxCleanliness(t);
+
+      const foodPct  = Math.min(100, (t.food  / maxFood)  * 100);
+      const oxyPct   = Math.min(100, (t.oxygen / maxOxy)  * 100);
+      const cleanPct = Math.min(100, (t.cleanliness / maxClean) * 100);
+
+      els.gbarFood.style.width  = foodPct.toFixed(1)  + '%';
+      els.gbarFood.className    = `tm-gauge-bar food${t.food < 30 ? ' danger' : ''}`;
+      els.gvalFood.textContent  = `${Math.round(t.food)}/${maxFood}`;
+
+      els.gbarOxy.style.width   = oxyPct.toFixed(1)   + '%';
+      els.gbarOxy.className     = `tm-gauge-bar oxy${t.oxygen < 30 ? ' danger' : ''}`;
+      els.gvalOxy.textContent   = `${Math.round(t.oxygen)}/${maxOxy}`;
+
+      els.gbarClean.style.width = cleanPct.toFixed(1) + '%';
+      els.gbarClean.className   = `tm-gauge-bar clean${t.cleanliness < 30 ? ' danger' : ''}`;
+      els.gvalClean.textContent = `${Math.round(t.cleanliness)}/${maxClean}`;
+
+      const updateAddon = (addon, timerEl, barEl) => {
+        if (!addon.startedAt) return;
+        const elapsed = (now - addon.startedAt) * (debugMode ? debugSpeed : 1);
+        const rem = Math.max(0, addon.duration - elapsed);
+        timerEl.textContent  = fmtMs(rem / (debugMode ? debugSpeed : 1));
+        barEl.style.width    = (rem / addon.duration * 100).toFixed(1) + '%';
+      };
+      updateAddon(t.aeration, els.aerTimer,  els.aerBar);
+      updateAddon(t.skimmer,  els.skimTimer, els.skimBar);
+      updateAddon(t.feeder,   els.feedTimer, els.feedBar);
     }
   }
 }
@@ -2344,6 +2745,10 @@ function renderInventory() {
   mgBtn.disabled = inv.magnifyingGlass <= 0;
   mgBtn.textContent = state.magnifyingGlassMode ? '🔍 Genotype ON' : '🔍 Phenotype';
   mgBtn.classList.toggle('debug-active', state.magnifyingGlassMode);
+
+  const storedEggCount = state.monkeys.filter(m => m.inStorage).length;
+  document.getElementById('inv-egg-storage-cnt').textContent = storedEggCount;
+  document.getElementById('btn-view-egg-storage').disabled = storedEggCount === 0;
 }
 
 function spawnBurstBubbles() {
@@ -2398,6 +2803,160 @@ function addWater() {
   saveState();
 }
 
+let _placingEggId    = null;
+let _placingGroupLabel = null;
+let _egsSearch       = '';
+
+function storeEgg(id) {
+  const m = state.monkeys.find(m => m.id === id);
+  if (!m || !m.alive || m.stage !== 'egg') return;
+  m.inStorage = true;
+  _popSignature = '';
+  addLog(`📦 ${m.name} stored.`, null, m.tankId);
+  saveState();
+}
+
+function placeEgg(id, tankId) {
+  const m = state.monkeys.find(m => m.id === id);
+  if (!m || !m.inStorage) return;
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank || !tank.waterPure) return;
+  m.inStorage = false;
+  m.tankId = tankId;
+  m.stageStartTime = Date.now();  // reset hatch timer fresh
+  if (!tank.eggsAdded) {
+    tank.eggsAdded = true;
+    state.gameStarted = true;
+    state.lastTick = state.lastTick || Date.now();
+  }
+  _popSignature = '';
+  _placingEggId = null;
+  addLog(`🥚 Egg placed in ${tank.name}.`, null, tankId);
+  saveState();
+  renderEggStorage();
+}
+
+function placeAllEggs(label, tankId) {
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank || !tank.waterPure) return;
+  const eggs = state.monkeys.filter(m => {
+    if (!m.inStorage) return false;
+    const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
+    if ((PHENOTYPE_DEFS[phenotype]?.name || phenotype) !== label) return false;
+    return !_egsSearch || popSearchMatch(m, _egsSearch);
+  });
+  if (!eggs.length) return;
+  const now = Date.now();
+  for (const m of eggs) {
+    m.inStorage = false;
+    m.tankId = tankId;
+    m.stageStartTime = now;
+  }
+  if (!tank.eggsAdded) {
+    tank.eggsAdded = true;
+    state.gameStarted = true;
+    state.lastTick = state.lastTick || now;
+  }
+  _popSignature = '';
+  _placingGroupLabel = null;
+  addLog(`🥚 ${eggs.length} ${label} egg${eggs.length > 1 ? 's' : ''} placed in ${tank.name}.`, null, tankId);
+  saveState();
+  renderEggStorage();
+}
+
+function renderEggStorage() {
+  const list = document.getElementById('egg-storage-list');
+  if (!list) return;
+  const stored = state.monkeys.filter(m => m.inStorage);
+
+  if (!stored.length) {
+    list.innerHTML = '<div style="color:#5599bb;font-size:11px;text-align:center;padding:20px 0;">No eggs in storage.</div>';
+    return;
+  }
+
+  const q = _egsSearch.toLowerCase();
+  const filtered = q ? stored.filter(m => popSearchMatch(m, q)) : stored;
+
+  // Group by colour phenotype name
+  if (!filtered.length) {
+    list.innerHTML = `<div style="color:#5599bb;font-size:11px;text-align:center;padding:20px 0;">No results for "${_egsSearch}".</div>`;
+    return;
+  }
+
+  const groups = {};
+  for (const m of filtered) {
+    const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
+    const def = PHENOTYPE_DEFS[phenotype] || {};
+    const label = def.name || phenotype;
+    if (!groups[label]) groups[label] = { label, phenotype, eggs: [] };
+    groups[label].eggs.push(m);
+  }
+  const sorted = Object.values(groups).sort((a, b) => a.label.localeCompare(b.label));
+
+  list.innerHTML = sorted.map(g => {
+    const eggCards = g.eggs.map(m => {
+      const def = PHENOTYPE_DEFS[g.phenotype] || {};
+      let emojiStyle = '';
+      if (def.opacity) {
+        emojiStyle = `style="opacity:${def.opacity};filter:${def.filterStr};"`;
+      } else {
+        const fp = def.filterStr ? `filter:${def.filterStr};` : '';
+        const sp = def.shadow    ? `text-shadow:${def.shadow};` : '';
+        if (fp || sp) emojiStyle = `style="${fp}${sp}"`;
+      }
+
+      const parts = [];
+      if (m.dna) {
+        const fn = (geneId, code) => GENE_DATA.find(g => g.id === geneId).alleles.find(a => a.code === code).name;
+        const metCode  = resolveAllele(m.dna.metabolism,   'metabolism');
+        const conCode  = resolveAllele(m.dna.constitution, 'constitution');
+        const lonCode  = resolveAllele(m.dna.longevity,    'longevity');
+        const tailCode = resolveAllele(m.dna.tail_shape,   'tail_shape');
+        if (metCode  !== 'M_NRM') parts.push(fn('metabolism',   metCode));
+        if (conCode  !== 'H_AVG') parts.push(fn('constitution', conCode));
+        if (lonCode  !== 'L_STD') parts.push(fn('longevity',    lonCode));
+        if (tailCode !== 'T_STD') parts.push(fn('tail_shape',   tailCode));
+      }
+      const traitsStr = parts.join(', ') || 'Standard traits';
+
+      const isPlacing = _placingEggId === m.id;
+      const eligibleTanks = state.tanks.filter(t => t.waterPure);
+      const tankBtns = eligibleTanks.map(t =>
+        `<button class="egs-tank-btn" data-place-egg="${m.id}" data-place-tank="${t.id}">${t.name}</button>`
+      ).join('');
+
+      return `<div class="egs-egg-card${isPlacing ? ' placing' : ''}">
+        <span class="egs-egg-emoji-wrap" data-monkey-id="${m.id}" ${emojiStyle}>🥚</span>
+        <div class="egs-egg-info">
+          <span class="egs-egg-name">${m.name} · Gen ${m.generation}</span>
+          <span class="egs-egg-traits">${traitsStr}</span>
+        </div>
+        ${isPlacing && tankBtns
+          ? `<div class="egs-tank-btns">${tankBtns}</div>`
+          : `<button class="egs-place-btn" data-egg-id="${m.id}">Place in Tank ▾</button>`
+        }
+      </div>`;
+    }).join('');
+
+    const eligibleTanks = state.tanks.filter(t => t.waterPure);
+    const isPlacingGroup = _placingGroupLabel === g.label;
+    const groupTankBtns = eligibleTanks.map(t =>
+      `<button class="egs-tank-btn" data-place-all-tank="${t.id}" data-place-all-group="${g.label}">${t.name}</button>`
+    ).join('');
+    const groupHeaderRight = isPlacingGroup && groupTankBtns
+      ? `<div class="egs-tank-btns">${groupTankBtns}</div>`
+      : `<button class="egs-place-all-btn" data-place-all-group="${g.label}">Place All ▾</button>`;
+
+    return `<div class="egs-colour-group">
+      <div class="egs-group-header">
+        <span class="egs-group-label">${g.label} <span style="color:#2a6a9a;">(${g.eggs.length})</span></span>
+        ${groupHeaderRight}
+      </div>
+      ${eggCards}
+    </div>`;
+  }).join('');
+}
+
 function releaseEggs() {
   const t = activeTank();
   if (!t.waterPure || t.eggsAdded) return;
@@ -2436,15 +2995,119 @@ function setupEventListeners() {
 
   // Population list: click card to move monkey
   document.getElementById('population-list').addEventListener('click', (e) => {
+    // Store egg button takes priority
+    const storeBtn = e.target.closest('[data-store-egg]');
+    if (storeBtn) { storeEgg(Number(storeBtn.dataset.storeEgg)); return; }
+    // Sell button
+    const sellBtn = e.target.closest('[data-sell-monkey]');
+    if (sellBtn) { sellMonkey(Number(sellBtn.dataset.sellMonkey)); return; }
+
     if (state.tanks.length <= 1) return;
     const card = e.target.closest('.pop-card[data-monkey-id]');
     if (card) showMoveMonkeyModal(Number(card.dataset.monkeyId));
+  });
+
+  // Population search + stage filter
+  document.getElementById('pop-search').addEventListener('input', (e) => {
+    _popSearch = e.target.value.trim();
+    _popSignature = '';
+    renderPopulation();
+  });
+  ['egg', 'baby', 'juvenile', 'adult', 'dead'].forEach(stage => {
+    document.getElementById(`pop-filter-${stage}`).addEventListener('change', (e) => {
+      _popStageFilter[stage] = e.target.checked;
+      _popSignature = '';
+      renderPopulation();
+    });
   });
 
   document.getElementById('btn-use-life-booster').addEventListener('click', useLifeBooster);
   document.getElementById('btn-use-egg-pack').addEventListener('click', useBoosterEggPack);
   document.getElementById('btn-use-glowing-flakes').addEventListener('click', useGlowingFlakes);
   document.getElementById('btn-toggle-magnifying-glass').addEventListener('click', toggleMagnifyingGlass);
+
+  document.getElementById('egs-search').addEventListener('input', (e) => {
+    _egsSearch = e.target.value.trim();
+    _placingEggId = null; _placingGroupLabel = null;
+    renderEggStorage();
+  });
+  document.getElementById('btn-view-egg-storage').addEventListener('click', () => {
+    _placingEggId = null; _placingGroupLabel = null; _egsSearch = '';
+    document.getElementById('egs-search').value = '';
+    renderEggStorage();
+    document.getElementById('egg-storage-modal').classList.add('open');
+  });
+  document.getElementById('egg-storage-close').addEventListener('click', () => {
+    document.getElementById('egg-storage-modal').classList.remove('open');
+    _placingEggId = null; _placingGroupLabel = null; _egsSearch = '';
+    document.getElementById('egs-search').value = '';
+  });
+  document.getElementById('egg-storage-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('egg-storage-modal')) {
+      document.getElementById('egg-storage-modal').classList.remove('open');
+      _placingEggId = null; _placingGroupLabel = null; _egsSearch = '';
+      document.getElementById('egs-search').value = '';
+    }
+  });
+  // Egg emoji hover → gene tooltip (fixed-position to escape scroll overflow clipping)
+  const egsTooltip      = document.getElementById('egs-gene-tooltip');
+  const egsTooltipTitle = document.getElementById('egs-gene-tooltip-title');
+  const egsTooltipBody  = document.getElementById('egs-gene-tooltip-body');
+  document.getElementById('egg-storage-list').addEventListener('mouseover', (e) => {
+    const wrap = e.target.closest('.egs-egg-emoji-wrap');
+    if (!wrap) { egsTooltip.style.display = 'none'; return; }
+    const m = state.monkeys.find(m => m.id === Number(wrap.dataset.monkeyId));
+    if (!m?.dna) { egsTooltip.style.display = 'none'; return; }
+    egsTooltipTitle.textContent = `${m.name} · Gen ${m.generation}`;
+    egsTooltipBody.innerHTML = genotypeCardHTML(m.dna);
+    const rect = wrap.getBoundingClientRect();
+    // Prefer right of emoji; clamp so it doesn't go off-screen
+    const ttW = 210;
+    const left = Math.min(rect.right + 8, window.innerWidth - ttW - 8);
+    egsTooltip.style.left = left + 'px';
+    egsTooltip.style.top  = rect.top + 'px';
+    egsTooltip.style.display = 'block';
+  });
+  document.getElementById('egg-storage-modal').addEventListener('mouseleave', () => {
+    egsTooltip.style.display = 'none';
+  });
+  document.getElementById('egg-storage-close').addEventListener('mouseenter', () => {
+    egsTooltip.style.display = 'none';
+  });
+
+  document.getElementById('egg-storage-list').addEventListener('click', (e) => {
+    // Place all eggs in group into a specific tank
+    const placeAllTankBtn = e.target.closest('[data-place-all-tank]');
+    if (placeAllTankBtn) {
+      placeAllEggs(placeAllTankBtn.dataset.placeAllGroup, Number(placeAllTankBtn.dataset.placeAllTank));
+      return;
+    }
+    // "Place All ▾" — expand group-level tank picker
+    const placeAllBtn = e.target.closest('[data-place-all-group]');
+    if (placeAllBtn) {
+      _placingGroupLabel = _placingGroupLabel === placeAllBtn.dataset.placeAllGroup
+        ? null  // toggle off if already open
+        : placeAllBtn.dataset.placeAllGroup;
+      _placingEggId = null;
+      renderEggStorage();
+      return;
+    }
+    // Place single egg into a specific tank
+    const tankBtn = e.target.closest('[data-place-tank]');
+    if (tankBtn) {
+      placeEgg(Number(tankBtn.dataset.placeEgg), Number(tankBtn.dataset.placeTank));
+      return;
+    }
+    // "Place in Tank ▾" — expand single-egg tank picker
+    const placeBtn = e.target.closest('.egs-place-btn');
+    if (placeBtn) {
+      _placingEggId = _placingEggId === Number(placeBtn.dataset.eggId)
+        ? null  // toggle off
+        : Number(placeBtn.dataset.eggId);
+      _placingGroupLabel = null;
+      renderEggStorage();
+    }
+  });
 
   // Monkeydex modal
   document.getElementById('btn-dex').addEventListener('click', (e) => {
@@ -2628,8 +3291,12 @@ function setupEventListeners() {
   });
 
   // Tank tabs
-  const tankTabs = ['tab-tank', 'tab-life-support', 'tab-population'];
-  const tankViews = { 'tab-life-support': 'life-support-view', 'tab-population': 'population-view' };
+  const tankTabs = ['tab-tank', 'tab-life-support', 'tab-population', 'tab-tank-manager'];
+  const tankViews = {
+    'tab-life-support': 'life-support-view',
+    'tab-population':   'population-view',
+    'tab-tank-manager': 'tank-manager-view',
+  };
   function switchTankTab(activeId) {
     tankTabs.forEach(id => {
       document.getElementById(id).classList.toggle('active', id === activeId);
@@ -2639,7 +3306,8 @@ function setupEventListeners() {
     });
     if (tankViews[activeId]) {
       document.getElementById(tankViews[activeId]).classList.add('active');
-      if (activeId === 'tab-population') renderPopulation();
+      if (activeId === 'tab-population')   renderPopulation();
+      if (activeId === 'tab-tank-manager') { _tmSig = ''; renderTankManager(); }
       if (activeId === 'tab-life-support') { _lsAerLevel = -1; _lsSkimLevel = -1; _lsFeederLevel = -1; }
     }
   }
@@ -2652,10 +3320,50 @@ function setupEventListeners() {
     if (row) switchActiveTank(Number(row.dataset.condTank));
   });
 
+  // Tank Manager — name editing and Switch button
+  document.getElementById('tank-manager-list').addEventListener('click', (e) => {
+    // Switch button
+    const switchBtn = e.target.closest('[data-tm-switch]');
+    if (switchBtn) {
+      switchActiveTank(Number(switchBtn.dataset.tmSwitch));
+      _tmSig = '';  // force rebuild to update active badge/button
+      return;
+    }
+    // Name click → inline edit
+    const nameEl = e.target.closest('[data-tm-name]');
+    if (!nameEl) return;
+    const tankId = Number(nameEl.dataset.tmName);
+    const tank = state.tanks.find(t => t.id === tankId);
+    if (!tank) return;
+    const input = document.createElement('input');
+    input.className = 'tm-tank-name-input';
+    input.value = tank.name;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = () => {
+      const newName = input.value.trim() || tank.name;
+      tank.name = newName;
+      _tmSig = '';  // force rebuild
+      saveState();
+      renderTankManager();
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { input.blur(); }
+      if (ev.key === 'Escape') { input.value = tank.name; input.blur(); }
+    });
+  });
+
   document.getElementById('tank-selector-bar').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-tank-id]');
     if (btn) { switchActiveTank(Number(btn.dataset.tankId)); return; }
-    if (e.target.id === 'btn-buy-tank') buyTank();
+    if (e.target.id === 'btn-buy-tank') { buyTank(); return; }
+    if (e.target.id === 'btn-manager') {
+      const isOpen = document.getElementById('tank-manager-view')?.classList.contains('active');
+      switchTankTab(isOpen ? 'tab-tank' : 'tab-tank-manager');
+      _tankSelectorSig = '';  // force selector rebuild to update active state
+    }
   });
 
   document.getElementById('btn-feed').addEventListener('click', () => {
@@ -2706,15 +3414,17 @@ function renderTankSelector() {
   const bar = document.getElementById('tank-selector-bar');
   if (!bar) return;
   const canAfford = state.currency >= 1000;
+  const mgrActive = document.getElementById('tank-manager-view')?.classList.contains('active') ? 1 : 0;
   const sig = state.tanks.map(t => t.id + ':' + t.name).join('|')
-    + `|active:${state.activeTankId}|buy:${canAfford ? 1 : 0}`;
+    + `|active:${state.activeTankId}|buy:${canAfford ? 1 : 0}|mgr:${mgrActive}`;
   if (sig === _tankSelectorSig) return;
   _tankSelectorSig = sig;
   const btns = state.tanks.map(t =>
     `<button class="tank-sel-btn${t.id === state.activeTankId ? ' active' : ''}" data-tank-id="${t.id}">${t.name}</button>`
   ).join('');
   const buyBtn = `<button class="tank-sel-btn tank-buy-btn"${canAfford ? '' : ' disabled'} id="btn-buy-tank">＋ Tank (£1,000)</button>`;
-  bar.innerHTML = btns + buyBtn;
+  const mgrBtn = `<button class="tank-sel-btn tank-mgr-btn${mgrActive ? ' active' : ''}" id="btn-manager">🏠 Manager</button>`;
+  bar.innerHTML = btns + buyBtn + mgrBtn;
 }
 
 function switchActiveTank(id) {
