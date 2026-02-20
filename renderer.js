@@ -2382,8 +2382,9 @@ function addWater() {
   t.waterAdded = true;
   t.purifying = true;
   t.purifyStartTime = Date.now();
+  const purifyLabel = t.purifyDuration <= 20_000 ? '~20 sec' : '~2 min';
   addLog('💧 Water packet added. Purifying...', null, t.id);
-  addNotification('💧 Purification started! (~2 min)');
+  addNotification(`💧 Purification started! (${purifyLabel})`);
   saveState();
 }
 
@@ -2704,6 +2705,7 @@ function buyTank() {
     id: newId,
     name: `Tank ${newId + 1}`,
     tankCreatedAt: Date.now(),
+    purifyDuration: 20_000,
   });
   switchActiveTank(newId);
   addLog(`💰 Purchased Tank ${newId + 1}!`);
