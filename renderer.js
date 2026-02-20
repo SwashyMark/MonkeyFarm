@@ -1859,9 +1859,12 @@ function renderSetupSection() {
   }
 
   const hasLife = t.eggsAdded;
-  document.getElementById('btn-feed').disabled   = !hasLife || t.food        >= getMaxFood(t);
-  document.getElementById('btn-aerate').disabled = !hasLife || t.oxygen      >= getMaxOxygen(t);
-  document.getElementById('btn-clean').disabled  = !hasLife || (t.cleanliness >= getMaxCleanliness(t) && state.monkeys.filter(m => !m.alive && m.tankId === t.id).length === 0);
+  const mb = getMasteryBonuses();
+  const feedAmt = ACTION_FEED_BASE + mb.feedBonus;
+  const hasCorpses = state.monkeys.some(m => !m.alive && m.tankId === t.id);
+  document.getElementById('btn-feed').disabled   = !hasLife || t.food        + feedAmt          > getMaxFood(t);
+  document.getElementById('btn-aerate').disabled = !hasLife || t.oxygen      + ACTION_AERATE_AMT > getMaxOxygen(t);
+  document.getElementById('btn-clean').disabled  = !hasLife || (t.cleanliness + ACTION_CLEAN_AMT  > getMaxCleanliness(t) && !hasCorpses);
 }
 
 let _gaugesSig = '';
