@@ -295,11 +295,9 @@ function xpForLevel(level) {
 }
 function addXP(amount) {
   if (!amount || amount <= 0) return;
-  const t = activeTank();
-  if (!t) return;
-  const prev = xpToLevel(t.tankXP || 0);
-  t.tankXP = (t.tankXP || 0) + amount;
-  const next = xpToLevel(t.tankXP);
+  const prev = xpToLevel(state.playerXP || 0);
+  state.playerXP = (state.playerXP || 0) + amount;
+  const next = xpToLevel(state.playerXP);
   if (next > prev) {
     state.currency += 250;
     addLog(`⭐ Player reached Level ${next}! (+£250)`);
@@ -356,7 +354,6 @@ const DEFAULT_TANK = {
   aeration:  { level: 0, startedAt: null, duration: null },
   skimmer:   { level: 0, startedAt: null, duration: null },
   feeder:    { level: 0, startedAt: null, duration: null },
-  tankXP: 0,
   tankCreatedAt: null,
   glowingFlakesActive: false,
 };
@@ -369,6 +366,7 @@ const DEFAULT_STATE = {
   totalOfflineMs: 0,
   gameStarted: false,
   fpsStressPop: null,
+  playerXP: 0,
   activeTankId: 0,
   tanks: [ { ...JSON.parse(JSON.stringify(DEFAULT_TANK)), id: 0, name: 'Tank 1', tankCreatedAt: null } ],
   monkeys: [],
@@ -472,11 +470,14 @@ function migrateState(loaded) {
       aeration:            loaded.aeration || JSON.parse(JSON.stringify(DEFAULT_TANK.aeration)),
       skimmer:             loaded.skimmer  || JSON.parse(JSON.stringify(DEFAULT_TANK.skimmer)),
       feeder:              loaded.feeder   || JSON.parse(JSON.stringify(DEFAULT_TANK.feeder)),
-      tankXP:              loaded.tankXP              || 0,
       tankCreatedAt:       loaded.tankCreatedAt       || null,
       glowingFlakesActive: loaded.glowingFlakesActive || loaded.splicerActive || false,
     }];
     loaded.activeTankId = 0;
+  }
+  // Migrate per-tank XP to global playerXP
+  if (loaded.playerXP == null) {
+    loaded.playerXP = (loaded.tanks || []).reduce((s, t) => s + (t.tankXP || 0), 0);
   }
   // Backfill tankId on monkeys / molts from old saves
   (loaded.monkeys || []).forEach(m => { if (m.tankId == null) m.tankId = 0; });
@@ -1790,7 +1791,7 @@ function renderAll() {
 }
 
 function renderTankLevel() {
-  const xp  = activeTank()?.tankXP || 0;
+  const xp  = state.playerXP || 0;
   const lvl = xpToLevel(xp);
   const cur = xpForLevel(lvl);
   const nxt = xpForLevel(lvl + 1);
