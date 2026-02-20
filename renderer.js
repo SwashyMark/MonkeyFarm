@@ -965,7 +965,7 @@ function updateMonkeyStage(m, tank) {
 
 function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   if (female.pregnant) return;
-  if (fpsStressPopulation !== null && aliveMonkeys.filter(m => m.alive).length >= fpsStressPopulation) return;
+  if (fpsStressPopulation !== null && aliveMonkeys.length >= fpsStressPopulation) return;
   const now = Date.now();
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
@@ -1009,7 +1009,7 @@ function processBirths(aliveMonkeys, tank) {
     const mb = getMasteryBonuses();
     const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
     for (let i = 0; i < count; i++) {
-      if (fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation) break;
+      if (fpsStressPopulation !== null && aliveMonkeys.length >= fpsStressPopulation) break;
       const dna = inheritGenes(m, father || m, usedFlakes);
       const baby = createMonkey({ generation: gen, dna, tankId: tank.id });
       // Build log tag: phenotype + expressed functional traits
@@ -1873,6 +1873,7 @@ function renderGauges() {
     _gaugesSig = tankSig;
     container.innerHTML = state.tanks.map(t =>
       `<div class="tank-cond-row" data-cond-tank="${t.id}">
+        <span class="tank-cap-warn" id="cap-warn-${t.id}" style="display:none" title="Tank at full capacity — new eggs will be infertile">⚠️</span>
         <div class="tank-cond-name">${t.name}</div>
         <div class="tank-cond-rings">
           <div class="tank-ring food"   id="ring-food-${t.id}"><span>🍔</span></div>
@@ -1883,10 +1884,16 @@ function renderGauges() {
     ).join('');
   }
 
-  // Update ring values and active highlight every frame
+  // Update ring values, active highlight, and per-tank capacity warning every frame
   for (const t of state.tanks) {
     const row = container.querySelector(`[data-cond-tank="${t.id}"]`);
     if (row) row.classList.toggle('active', t.id === state.activeTankId);
+
+    const tankAlive = state.monkeys.filter(m => m.alive && m.tankId === t.id).length;
+    const atCapacity = fpsStressPopulation !== null && tankAlive >= fpsStressPopulation;
+    const warnEl = document.getElementById(`cap-warn-${t.id}`);
+    if (warnEl) warnEl.style.display = atCapacity ? '' : 'none';
+
     const sets = [
       ['ring-food-'   + t.id, t.food,        getMaxFood(t)],
       ['ring-oxygen-' + t.id, t.oxygen,       getMaxOxygen(t)],
@@ -1898,12 +1905,6 @@ function renderGauges() {
       el.style.setProperty('--pct', Math.min(100, (val / (max || 100)) * 100).toFixed(1));
       el.classList.toggle('danger', val < 30);
     }
-  }
-
-  const notice = document.getElementById('capacity-notice');
-  if (notice) {
-    const atCapacity = fpsStressPopulation !== null && state.monkeys.filter(m => m.alive).length >= fpsStressPopulation;
-    notice.style.display = atCapacity ? '' : 'none';
   }
 }
 

@@ -110,11 +110,7 @@
         color: #5599bb; margin-bottom: 6px; border-bottom: 1px solid #1a3a5c;
         padding-bottom: 4px;
       }
-      #capacity-notice {
-        font-size: 9px; color: #ffcc44; background: rgba(255,180,0,0.08);
-        border: 1px solid rgba(255,180,0,0.25); border-radius: 4px;
-        padding: 4px 6px; margin-bottom: 6px; line-height: 1.4; text-align: center;
-      }
+
       /* Tank Level panel */
       #tank-level-panel { display: flex; align-items: center; gap: 10px; }
       #tank-level-badge {
@@ -162,6 +158,7 @@
         60%  { background: rgba(220, 50, 50, 0.2); }
         100% { background: transparent; }
       }
+      .tank-cap-warn { font-size: 11px; margin-right: 3px; flex-shrink: 0; }
       .tank-cond-name { font-size: 10px; color: #5599bb; flex: 1; }
       .tank-cond-row.active .tank-cond-name { color: #7fd8ff; font-weight: bold; }
       .tank-cond-rings { display: flex; gap: 5px; }
@@ -945,7 +942,6 @@
       <!-- Tank conditions -->
       <div class="panel" id="conditions-panel">
         <div class="panel-title">Tank Conditions</div>
-        <div id="capacity-notice" style="display:none;">⚠️ Tank at full capacity — eggs laid will be infertile</div>
         <div id="tank-conditions-list"></div>
       </div>
 
