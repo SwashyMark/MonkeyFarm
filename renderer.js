@@ -1800,6 +1800,7 @@ function renderTankLevel() {
   document.getElementById('tank-xp-bar').style.width = pct.toFixed(1) + '%';
   document.getElementById('tank-xp-label').textContent =
     `${Math.floor(xp - cur)} / ${nxt - cur} XP`;
+  document.getElementById('mini-lv-num').textContent = lvl;
 }
 
 function renderHeader() {
@@ -1863,9 +1864,15 @@ function renderSetupSection() {
   const mb = getMasteryBonuses();
   const feedAmt = ACTION_FEED_BASE + mb.feedBonus;
   const hasCorpses = state.monkeys.some(m => !m.alive && m.tankId === t.id);
-  document.getElementById('btn-feed').disabled   = !hasLife || t.food        + feedAmt          > getMaxFood(t);
-  document.getElementById('btn-aerate').disabled = !hasLife || t.oxygen      + ACTION_AERATE_AMT > getMaxOxygen(t);
-  document.getElementById('btn-clean').disabled  = !hasLife || (t.cleanliness + ACTION_CLEAN_AMT  > getMaxCleanliness(t) && !hasCorpses);
+  const feedDis  = !hasLife || t.food        + feedAmt          > getMaxFood(t);
+  const aerDis   = !hasLife || t.oxygen      + ACTION_AERATE_AMT > getMaxOxygen(t);
+  const cleanDis = !hasLife || (t.cleanliness + ACTION_CLEAN_AMT  > getMaxCleanliness(t) && !hasCorpses);
+  document.getElementById('btn-feed').disabled   = feedDis;
+  document.getElementById('btn-aerate').disabled = aerDis;
+  document.getElementById('btn-clean').disabled  = cleanDis;
+  document.getElementById('mini-ring-food').classList.toggle('mini-disabled',   feedDis);
+  document.getElementById('mini-ring-oxygen').classList.toggle('mini-disabled', aerDis);
+  document.getElementById('mini-ring-clean').classList.toggle('mini-disabled',  cleanDis);
 }
 
 let _gaugesSig = '';
@@ -1913,6 +1920,21 @@ function renderGauges() {
       if (!el) continue;
       el.style.setProperty('--pct', Math.min(100, (val / (max || 100)) * 100).toFixed(1));
       el.classList.toggle('danger', val < 30);
+    }
+
+    // Update mini rings for active tank
+    if (t.id === state.activeTankId) {
+      const miniSets = [
+        ['mini-ring-food',   t.food,        getMaxFood(t)],
+        ['mini-ring-oxygen', t.oxygen,       getMaxOxygen(t)],
+        ['mini-ring-clean',  t.cleanliness, getMaxCleanliness(t)],
+      ];
+      for (const [id, val, max] of miniSets) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        el.style.setProperty('--pct', Math.min(100, (val / (max || 100)) * 100).toFixed(1));
+        el.classList.toggle('danger', val < 30);
+      }
     }
   }
 }
@@ -2451,6 +2473,16 @@ function setupEventListeners() {
     addNotification('🔄 FPS cap cleared');
   });
 
+  // Sidebar collapse toggle
+  document.getElementById('sidebar-collapse-btn').addEventListener('click', () => {
+    const mini = document.body.classList.toggle('sidebar-mini');
+    document.getElementById('sidebar-collapse-btn').textContent = mini ? '▶' : '◀';
+    localStorage.setItem('sidebarCollapsed', mini ? '1' : '0');
+  });
+  document.getElementById('mini-ring-food').addEventListener('click',   () => document.getElementById('btn-feed').click());
+  document.getElementById('mini-ring-oxygen').addEventListener('click', () => document.getElementById('btn-aerate').click());
+  document.getElementById('mini-ring-clean').addEventListener('click',  () => document.getElementById('btn-clean').click());
+
   document.getElementById('btn-settings').addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('settings-overlay').classList.toggle('open');
@@ -2727,6 +2759,10 @@ function renderTimerStats() {
 function initGame() {
   state = loadState();
   state.tanks.forEach(t => { if (!t.tankCreatedAt) t.tankCreatedAt = Date.now(); });
+  if (localStorage.getItem('sidebarCollapsed') === '1') {
+    document.body.classList.add('sidebar-mini');
+    document.getElementById('sidebar-collapse-btn').textContent = '▶';
+  }
   if (state.fpsStressPop != null) {
     fpsStressPopulation = state.fpsStressPop;
     const el = document.getElementById('fps-stress-pop');

@@ -23,6 +23,7 @@
         display: grid;
         grid-template-areas: "header header" "sidebar tank" "sidebar statusbar";
         grid-template-columns: 280px 1fr;
+        transition: grid-template-columns 0.2s ease;
         grid-template-rows: 50px 1fr 30px;
       }
 
@@ -97,7 +98,49 @@
         overflow-y: auto; overflow-x: hidden;
         padding: 8px;
         display: flex; flex-direction: column; gap: 8px;
+        transition: padding 0.2s ease;
       }
+      #sidebar-collapse-btn {
+        align-self: flex-end;
+        background: none; border: 1px solid #1a3a5c; border-radius: 4px;
+        color: #5599bb; font-size: 11px; cursor: pointer;
+        padding: 2px 6px; flex-shrink: 0;
+        transition: color 0.15s, background 0.15s;
+      }
+      #sidebar-collapse-btn:hover { background: #0d2137; color: #7fd8ff; }
+
+      /* Mini sidebar (collapsed) */
+      body.sidebar-mini {
+        grid-template-columns: 44px 1fr;
+      }
+      body.sidebar-mini #sidebar {
+        padding: 6px 4px;
+        align-items: center;
+        overflow: visible;
+      }
+      body.sidebar-mini .panel { display: none; }
+      body.sidebar-mini #sidebar-collapse-btn { align-self: center; }
+      #sidebar-mini-content { display: none; flex-direction: column; align-items: center; gap: 5px; width: 100%; }
+      body.sidebar-mini #sidebar-mini-content { display: flex; }
+      #mini-lv-label { font-size: 8px; color: #5599bb; text-transform: uppercase; letter-spacing: 1px; }
+      #mini-lv-num   { font-size: 17px; font-weight: bold; color: #ffd700; text-shadow: 0 0 6px rgba(255,215,0,0.4); text-align: center; margin-top: -2px; }
+      .mini-ring {
+        width: 32px; height: 32px; border-radius: 50%;
+        background: conic-gradient(from -90deg, var(--ring-color) calc(var(--pct,0) * 1%), #0a1628 0);
+        display: flex; align-items: center; justify-content: center;
+        position: relative; cursor: pointer; transition: opacity 0.15s;
+      }
+      .mini-ring::before {
+        content: ''; position: absolute; inset: 5px;
+        background: #071424; border-radius: 50%;
+      }
+      .mini-ring span { position: relative; z-index: 1; font-size: 12px; line-height: 1; }
+      .mini-ring.food    { --ring-color: #ffdd00; }
+      .mini-ring.oxygen  { --ring-color: #44aaff; }
+      .mini-ring.clean   { --ring-color: #44cc77; }
+      .mini-ring.danger  { --ring-color: #ff4444; animation: gauge-pulse 0.8s ease-in-out infinite; }
+      .mini-ring.mini-disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+      .mini-ring:not(.mini-disabled):hover { filter: brightness(1.25); }
 
       .panel {
         background: #0d2137;
@@ -922,6 +965,19 @@
 
     <!-- SIDEBAR -->
     <div id="sidebar">
+
+      <button id="sidebar-collapse-btn" title="Collapse sidebar">◀</button>
+
+      <!-- Mini sidebar content (visible when collapsed) -->
+      <div id="sidebar-mini-content">
+        <div style="text-align:center;">
+          <div id="mini-lv-label">LV</div>
+          <div id="mini-lv-num">1</div>
+        </div>
+        <div class="mini-ring food"   id="mini-ring-food"   title="Feed">  <span>🍔</span></div>
+        <div class="mini-ring oxygen" id="mini-ring-oxygen" title="Aerate"><span>💨</span></div>
+        <div class="mini-ring clean"  id="mini-ring-clean"  title="Clean"> <span>🧹</span></div>
+      </div>
 
       <!-- Player Level -->
       <div class="panel">
