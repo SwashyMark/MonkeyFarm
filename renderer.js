@@ -301,8 +301,9 @@ function addXP(amount) {
   t.tankXP = (t.tankXP || 0) + amount;
   const next = xpToLevel(t.tankXP);
   if (next > prev) {
-    addLog(`⭐ Player reached Level ${next}!`);
-    addNotification(`⭐ Player Level Up! Now Level ${next}`);
+    state.currency += 250;
+    addLog(`⭐ Player reached Level ${next}! (+£250)`);
+    addNotification(`⭐ Player Level Up! Now Level ${next} (+£250)`);
   }
 }
 
