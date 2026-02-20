@@ -91,6 +91,7 @@ function applyPendingUpdate() {
 }
 
 async function checkForUpdates() {
+  if (updateFound) return
   try {
     const bust = `?t=${Date.now()}`
     const remote = JSON.parse(await fetchText(`${REPO_RAW}/package.json${bust}`))
@@ -111,6 +112,7 @@ async function checkForUpdates() {
       ulog(`[updater] Staged: ${file}`)
     }
 
+    updateFound = true
     ulog('[updater] Showing restart dialog...')
     const { response } = await dialog.showMessageBox({
       type: 'info',
@@ -134,6 +136,7 @@ async function checkForUpdates() {
 
 const UPDATE_INTERVAL_MS = 60 * 1000
 let nextCheckTime = Date.now()
+let updateFound = false
 
 ipcMain.handle('get-app-version', () => {
   try {
