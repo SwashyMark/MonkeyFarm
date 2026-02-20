@@ -2486,15 +2486,10 @@ function setupEventListeners() {
   });
 
   document.getElementById('btn-pause').addEventListener('click', () => {
-    paused = !paused;
     const btn = document.getElementById('btn-pause');
-    btn.textContent = paused ? '▶' : '⏸';
-    btn.classList.toggle('paused', paused);
-    btn.title = paused ? 'Resume simulation' : 'Pause simulation';
     if (paused) {
-      pausedAt = Date.now();
-      addNotification('⏸ Paused');
-    } else {
+      // Shift all timestamps forward BEFORE clearing the paused flag,
+      // so the tick loop never sees stale timestamps on the first tick.
       const pauseDuration = Date.now() - pausedAt;
       for (const t of state.tanks) {
         if (t.aeration.startedAt != null) t.aeration.startedAt += pauseDuration;
@@ -2506,8 +2501,20 @@ function setupEventListeners() {
         if (m.stageStartTime != null) m.stageStartTime += pauseDuration;
         if (m.pregnantSince  != null) m.pregnantSince  += pauseDuration;
         if (m.bornAt         != null) m.bornAt         += pauseDuration;
+        if (m.lastMatedAt    != null) m.lastMatedAt    += pauseDuration;
       }
+      paused = false;
+      btn.textContent = '⏸';
+      btn.classList.remove('paused');
+      btn.title = 'Pause simulation';
       addNotification('▶ Resumed');
+    } else {
+      paused = true;
+      pausedAt = Date.now();
+      btn.textContent = '▶';
+      btn.classList.add('paused');
+      btn.title = 'Resume simulation';
+      addNotification('⏸ Paused');
     }
   });
 
