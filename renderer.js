@@ -1761,6 +1761,8 @@ function renderAll() {
           state.fpsStressPop = fpsStressPopulation;
           const stressEl = document.getElementById('fps-stress-pop');
           if (stressEl) stressEl.textContent = fpsStressPopulation;
+          const resetRow = document.getElementById('fps-stress-reset-row');
+          if (resetRow) resetRow.style.display = '';
         }
       } else {
         fpsLowSince = null;
@@ -1857,9 +1859,9 @@ function renderSetupSection() {
   }
 
   const hasLife = t.eggsAdded;
-  document.getElementById('btn-feed').disabled   = !hasLife;
-  document.getElementById('btn-aerate').disabled = !hasLife;
-  document.getElementById('btn-clean').disabled  = !hasLife;
+  document.getElementById('btn-feed').disabled   = !hasLife || t.food        >= getMaxFood(t);
+  document.getElementById('btn-aerate').disabled = !hasLife || t.oxygen      >= getMaxOxygen(t);
+  document.getElementById('btn-clean').disabled  = !hasLife || (t.cleanliness >= getMaxCleanliness(t) && state.monkeys.filter(m => !m.alive && m.tankId === t.id).length === 0);
 }
 
 let _gaugesSig = '';
@@ -2433,6 +2435,18 @@ function setupEventListeners() {
     addNotification('🗑️ Tank reset');
   });
 
+  document.getElementById('btn-reset-fps-stress').addEventListener('click', () => {
+    fpsStressPopulation = null;
+    fpsLowSince = null;
+    state.fpsStressPop = null;
+    const el = document.getElementById('fps-stress-pop');
+    if (el) el.textContent = '—';
+    const resetRow = document.getElementById('fps-stress-reset-row');
+    if (resetRow) resetRow.style.display = 'none';
+    saveState();
+    addNotification('🔄 FPS cap cleared');
+  });
+
   document.getElementById('btn-settings').addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('settings-overlay').classList.toggle('open');
@@ -2713,6 +2727,8 @@ function initGame() {
     fpsStressPopulation = state.fpsStressPop;
     const el = document.getElementById('fps-stress-pop');
     if (el) el.textContent = fpsStressPopulation;
+    const resetRow = document.getElementById('fps-stress-reset-row');
+    if (resetRow) resetRow.style.display = '';
   }
   applyOfflineProgress();
   state.lastTick = Date.now();
