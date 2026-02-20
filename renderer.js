@@ -584,11 +584,7 @@ function migrateState(loaded) {
 // 6. STATE HELPERS
 // ─────────────────────────────────────────────
 function addLog(msg, group = null, tankId = undefined) {
-  const showLabel = tankId !== undefined && state.tanks && state.tanks.length > 1;
-  const label = showLabel ? `[T${tankId + 1}] ` : '';
-  const displayMsg = label + msg;
-  const groupKey = label + (group ?? msg);
-  state.log.unshift({ msg: displayMsg, isNew: true, group: groupKey });
+  state.log.unshift({ msg, isNew: true, group: group ?? msg, tankId });
   if (state.log.length > 80) state.log.pop();
 }
 
@@ -2102,25 +2098,28 @@ function renderEventLog() {
     return;
   }
   const firstEntry = entries[0];
-  if (container._lastTop === firstEntry.msg) return;
-  container._lastTop = firstEntry.msg;
+  if (container._lastTop === firstEntry.msg + firstEntry.tankId) return;
+  container._lastTop = firstEntry.msg + firstEntry.tankId;
 
-  // Group consecutive entries with the same message
+  const multiTank = state.tanks.length > 1;
+
+  // Group consecutive entries with same group key + same tank
   const grouped = [];
   for (const e of entries) {
+    const eKey = e.group + '|' + (e.tankId ?? '');
     const last = grouped[grouped.length - 1];
-    if (last && last.group === e.group) {
+    if (last && last._key === eKey) {
       last.count++;
     } else {
-      grouped.push({ ...e, count: 1 });
+      grouped.push({ ...e, count: 1, _key: eKey });
     }
   }
 
-  container.innerHTML = grouped.map((e, i) =>
-    `<div class="log-entry ${i === 0 && e.isNew ? 'new' : ''}">
-      ${e.count > 1 ? `${e.count}x ` : ''}${e.count > 1 ? e.group : e.msg}
-    </div>`
-  ).join('');
+  container.innerHTML = grouped.map((e, i) => {
+    const label = (multiTank && e.tankId !== undefined) ? `<span class="log-tank">[T${e.tankId + 1}]</span> ` : '';
+    const text  = e.count > 1 ? `${e.count}x ${e.group}` : e.msg;
+    return `<div class="log-entry ${i === 0 && e.isNew ? 'new' : ''}">${label}${text}</div>`;
+  }).join('');
   entries.forEach(e => { e.isNew = false; });
 }
 
