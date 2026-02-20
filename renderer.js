@@ -1861,23 +1861,42 @@ function renderSetupSection() {
   document.getElementById('btn-clean').disabled  = !hasLife;
 }
 
+let _gaugesSig = '';
+
 function renderGauges() {
-  const t = activeTank();
-  const pairs = [
-    ['food-bar',   'food-val',   t.food, getMaxFood(t)],
-    ['oxygen-bar', 'oxygen-val', t.oxygen, getMaxOxygen(t)],
-    ['clean-bar',  'clean-val',  t.cleanliness, getMaxCleanliness(t)],
-  ];
-  for (const [barId, valId, val, max] of pairs) {
-    const bar = document.getElementById(barId);
-    const valEl = document.getElementById(valId);
-    const cap = max || 100;
-    bar.style.width = Math.min(100, (val / cap) * 100).toFixed(1) + '%';
-    valEl.textContent = val.toFixed(0);
-    if (val < 30) {
-      bar.classList.add('danger');
-    } else {
-      bar.classList.remove('danger');
+  const container = document.getElementById('tank-conditions-list');
+  if (!container) return;
+
+  // Rebuild rows only when tank list changes
+  const tankSig = state.tanks.map(t => t.id).join(',');
+  if (tankSig !== _gaugesSig) {
+    _gaugesSig = tankSig;
+    container.innerHTML = state.tanks.map(t =>
+      `<div class="tank-cond-row" data-cond-tank="${t.id}">
+        <div class="tank-cond-name">${t.name}</div>
+        <div class="tank-cond-rings">
+          <div class="tank-ring food"   id="ring-food-${t.id}"><span>🍔</span></div>
+          <div class="tank-ring oxygen" id="ring-oxygen-${t.id}"><span>💨</span></div>
+          <div class="tank-ring clean"  id="ring-clean-${t.id}"><span>🧹</span></div>
+        </div>
+      </div>`
+    ).join('');
+  }
+
+  // Update ring values and active highlight every frame
+  for (const t of state.tanks) {
+    const row = container.querySelector(`[data-cond-tank="${t.id}"]`);
+    if (row) row.classList.toggle('active', t.id === state.activeTankId);
+    const sets = [
+      ['ring-food-'   + t.id, t.food,        getMaxFood(t)],
+      ['ring-oxygen-' + t.id, t.oxygen,       getMaxOxygen(t)],
+      ['ring-clean-'  + t.id, t.cleanliness, getMaxCleanliness(t)],
+    ];
+    for (const [id, val, max] of sets) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.style.setProperty('--pct', Math.min(100, (val / (max || 100)) * 100).toFixed(1));
+      el.classList.toggle('danger', val < 30);
     }
   }
 
@@ -2444,6 +2463,11 @@ function setupEventListeners() {
   }
   tankTabs.forEach(id => {
     document.getElementById(id).addEventListener('click', () => switchTankTab(id));
+  });
+
+  document.getElementById('tank-conditions-list').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-cond-tank]');
+    if (row) switchActiveTank(Number(row.dataset.condTank));
   });
 
   document.getElementById('tank-selector-bar').addEventListener('click', (e) => {

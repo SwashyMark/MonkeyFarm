@@ -150,6 +150,31 @@
       .gauge-fill.clean  { background: linear-gradient(90deg, #007733, #44cc77); }
       .gauge-fill.danger { animation: gauge-pulse 0.8s ease-in-out infinite; }
 
+      /* ── TANK CONDITION RINGS ── */
+      .tank-cond-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 4px 0; cursor: pointer;
+      }
+      .tank-cond-row + .tank-cond-row { border-top: 1px solid #0a1a2c; }
+      .tank-cond-name { font-size: 10px; color: #5599bb; flex: 1; }
+      .tank-cond-row.active .tank-cond-name { color: #7fd8ff; font-weight: bold; }
+      .tank-cond-rings { display: flex; gap: 5px; }
+      .tank-ring {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: conic-gradient(from -90deg, var(--ring-color) calc(var(--pct, 0) * 1%), #0a1628 0);
+        display: flex; align-items: center; justify-content: center;
+        position: relative;
+      }
+      .tank-ring::before {
+        content: ''; position: absolute; inset: 5px;
+        background: #0d2137; border-radius: 50%;
+      }
+      .tank-ring span { position: relative; z-index: 1; font-size: 11px; line-height: 1; }
+      .tank-ring.food    { --ring-color: #ffdd00; }
+      .tank-ring.oxygen  { --ring-color: #44aaff; }
+      .tank-ring.clean   { --ring-color: #44cc77; }
+      .tank-ring.danger  { --ring-color: #ff4444; animation: gauge-pulse 0.8s ease-in-out infinite; }
+
       /* Buttons */
       .btn {
         width: 100%; padding: 6px 8px; margin-bottom: 4px;
@@ -884,18 +909,7 @@
       <div class="panel" id="conditions-panel">
         <div class="panel-title">Tank Conditions</div>
         <div id="capacity-notice" style="display:none;">⚠️ Tank at full capacity — eggs laid will be infertile</div>
-        <div class="gauge">
-          <div class="gauge-label"><span>🍔 Food</span><span id="food-val">100</span></div>
-          <div class="gauge-track"><div class="gauge-fill food" id="food-bar" style="width:100%"></div></div>
-        </div>
-        <div class="gauge">
-          <div class="gauge-label"><span>💨 Oxygen</span><span id="oxygen-val">100</span></div>
-          <div class="gauge-track"><div class="gauge-fill oxygen" id="oxygen-bar" style="width:100%"></div></div>
-        </div>
-        <div class="gauge">
-          <div class="gauge-label"><span>🧹 Clean</span><span id="clean-val">100</span></div>
-          <div class="gauge-track"><div class="gauge-fill clean" id="clean-bar" style="width:100%"></div></div>
-        </div>
+        <div id="tank-conditions-list"></div>
       </div>
 
       <!-- Actions -->
