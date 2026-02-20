@@ -101,11 +101,10 @@
         transition: padding 0.2s ease;
       }
       #sidebar-collapse-btn {
-        align-self: flex-end;
-        background: none; border: 1px solid #1a3a5c; border-radius: 4px;
-        color: #5599bb; font-size: 11px; cursor: pointer;
-        padding: 2px 6px; flex-shrink: 0;
-        transition: color 0.15s, background 0.15s;
+        background: none; border: 1px solid #1a3a5c; border-radius: 6px;
+        color: #5599bb; font-size: 15px; width: 36px; height: 36px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s, color 0.15s; flex-shrink: 0;
       }
       #sidebar-collapse-btn:hover { background: #0d2137; color: #7fd8ff; }
 
@@ -118,12 +117,16 @@
         align-items: center;
         overflow: visible;
       }
-      body.sidebar-mini .panel { display: none; }
-      body.sidebar-mini #sidebar-collapse-btn { align-self: center; }
+      body.sidebar-mini .panel { display: none !important; }
       #sidebar-mini-content { display: none; flex-direction: column; align-items: center; gap: 5px; width: 100%; }
       body.sidebar-mini #sidebar-mini-content { display: flex; }
       #mini-lv-label { font-size: 8px; color: #5599bb; text-transform: uppercase; letter-spacing: 1px; }
       #mini-lv-num   { font-size: 17px; font-weight: bold; color: #ffd700; text-shadow: 0 0 6px rgba(255,215,0,0.4); text-align: center; margin-top: -2px; }
+      #mini-conditions { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
+      .mini-tank-group { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 4px 0; }
+      .mini-tank-group + .mini-tank-group { border-top: 1px solid #0a1a2c; }
+      .mini-tank-label { font-size: 8px; color: #5599bb; text-transform: uppercase; letter-spacing: 0.5px; }
+      .mini-tank-group.mini-active .mini-tank-label { color: #7fd8ff; }
       .mini-ring {
         width: 32px; height: 32px; border-radius: 50%;
         background: conic-gradient(from -90deg, var(--ring-color) calc(var(--pct,0) * 1%), #0a1628 0);
@@ -188,6 +191,8 @@
       .gauge-fill.oxygen { background: linear-gradient(90deg, #0055cc, #44aaff); }
       .gauge-fill.clean  { background: linear-gradient(90deg, #007733, #44cc77); }
       .gauge-fill.danger { animation: gauge-pulse 0.8s ease-in-out infinite; }
+
+      #event-log-panel { display: flex; }
 
       /* ── TANK CONDITION RINGS ── */
       .tank-cond-row {
@@ -786,6 +791,7 @@
 
     <!-- HEADER -->
     <div id="header">
+      <button id="sidebar-collapse-btn" title="Collapse sidebar">◀</button>
       <h1>🦐 Sea Monkey Farm</h1>
       <div class="header-census">
         <div class="hstat">
@@ -966,17 +972,13 @@
     <!-- SIDEBAR -->
     <div id="sidebar">
 
-      <button id="sidebar-collapse-btn" title="Collapse sidebar">◀</button>
-
       <!-- Mini sidebar content (visible when collapsed) -->
       <div id="sidebar-mini-content">
         <div style="text-align:center;">
           <div id="mini-lv-label">LV</div>
           <div id="mini-lv-num">1</div>
         </div>
-        <div class="mini-ring food"   id="mini-ring-food"   title="Feed">  <span>🍔</span></div>
-        <div class="mini-ring oxygen" id="mini-ring-oxygen" title="Aerate"><span>💨</span></div>
-        <div class="mini-ring clean"  id="mini-ring-clean"  title="Clean"> <span>🧹</span></div>
+        <div id="mini-conditions"></div>
       </div>
 
       <!-- Player Level -->
@@ -1069,7 +1071,7 @@
       </div>
 
       <!-- Event log -->
-      <div class="panel" style="flex:1; min-height:80px; display:flex; flex-direction:column;">
+      <div class="panel" id="event-log-panel" style="flex:1; min-height:80px; flex-direction:column;">
         <div class="panel-title">Event Log</div>
         <div id="event-log" style="flex:1; overflow-y:auto;"></div>
       </div>
