@@ -431,6 +431,7 @@ let renderDt = 25; // ms since last render frame, used for delta-time movement
 let fpsLowSince = null;        // timestamp when FPS first dropped below 30
 let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
 let paused = false;
+let pausedAt = 0;
 
 // Returns the currently-viewed tank object
 function activeTank() { return state.tanks[state.activeTankId]; }
@@ -1578,7 +1579,7 @@ function renderLifeSupport() {
   const view = document.getElementById('life-support-view');
   if (!view || !view.classList.contains('active')) return;
 
-  const now = Date.now();
+  const now = paused ? pausedAt : Date.now();
   const currency = state.currency || 0;
   const tank   = activeTank();
   const aer    = tank.aeration;
@@ -1838,7 +1839,7 @@ function renderSetupSection() {
     overlay.querySelector('h2').textContent = 'Purifying Water...';
     overlay.querySelector('p').textContent = 'Your tank water is being purified. Check back soon!';
     overlayBtn.style.display = 'none';
-    const elapsed = Date.now() - t.purifyStartTime;
+    const elapsed = (paused ? pausedAt : Date.now()) - t.purifyStartTime;
     const effectiveElapsed = debugMode ? elapsed * debugSpeed : elapsed;
     const remaining = Math.max(0, t.purifyDuration - effectiveElapsed);
     const pct = Math.min(100, (effectiveElapsed / t.purifyDuration) * 100);
@@ -2105,7 +2106,7 @@ function renderMonkeys() {
 
       const baseSpeeds = { egg: 0, baby: 40, juvenile: 55, adult: 70 }; // px/sec
       const speed = (baseSpeeds[m.stage] || 0) * stats.moveSpeed * (stats.isFF ? 0.5 : 1);
-      const dt = renderDt / 1000; // seconds
+      const dt = paused ? 0 : renderDt / 1000; // seconds
 
       if (speed > 0) {
         const dx = m._targetX - m._x;
@@ -2490,8 +2491,19 @@ function setupEventListeners() {
     btn.textContent = paused ? '▶' : '⏸';
     btn.classList.toggle('paused', paused);
     btn.title = paused ? 'Resume simulation' : 'Pause simulation';
-    if (paused) addNotification('⏸ Paused');
-    else        addNotification('▶ Resumed');
+    if (paused) {
+      pausedAt = Date.now();
+      addNotification('⏸ Paused');
+    } else {
+      const pauseDuration = Date.now() - pausedAt;
+      for (const t of state.tanks) {
+        if (t.aeration.startedAt != null) t.aeration.startedAt += pauseDuration;
+        if (t.skimmer.startedAt  != null) t.skimmer.startedAt  += pauseDuration;
+        if (t.feeder.startedAt   != null) t.feeder.startedAt   += pauseDuration;
+        if (t.purifyStartTime    != null) t.purifyStartTime    += pauseDuration;
+      }
+      addNotification('▶ Resumed');
+    }
   });
 
   // Sidebar collapse toggle
