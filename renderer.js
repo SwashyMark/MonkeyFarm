@@ -1924,32 +1924,27 @@ function renderGauges() {
 
   }
 
-  // Mini conditions: rebuild structure when tanks/active changes, update pcts every frame
+  // Mini conditions: active tank only
   const miniContainer = document.getElementById('mini-conditions');
   if (miniContainer) {
-    const miniSig = state.tanks.map(t => t.id).join(',') + '|' + state.activeTankId;
+    const t = activeTank();
+    const miniSig = String(state.activeTankId);
     if (miniContainer.dataset.sig !== miniSig) {
       miniContainer.dataset.sig = miniSig;
-      miniContainer.innerHTML = state.tanks.map(t =>
-        `<div class="mini-tank-group ${t.id === state.activeTankId ? 'mini-active' : ''}" data-mini-tank="${t.id}">
-          <div class="mini-tank-label">T${t.id + 1}</div>
-          <div class="mini-ring food"   id="mini-food-${t.id}"  data-action="feed"   data-tank-id="${t.id}"><span>🍔</span></div>
-          <div class="mini-ring oxygen" id="mini-oxy-${t.id}"   data-action="aerate" data-tank-id="${t.id}"><span>💨</span></div>
-          <div class="mini-ring clean"  id="mini-clean-${t.id}" data-action="clean"  data-tank-id="${t.id}"><span>🧹</span></div>
-        </div>`
-      ).join('');
+      miniContainer.innerHTML =
+        `<div class="mini-ring food"   id="mini-food-${t.id}"  data-action="feed"   data-tank-id="${t.id}"><span>🍔</span></div>
+         <div class="mini-ring oxygen" id="mini-oxy-${t.id}"   data-action="aerate" data-tank-id="${t.id}"><span>💨</span></div>
+         <div class="mini-ring clean"  id="mini-clean-${t.id}" data-action="clean"  data-tank-id="${t.id}"><span>🧹</span></div>`;
     }
-    for (const t of state.tanks) {
-      for (const [id, val, max] of [
-        [`mini-food-${t.id}`,  t.food,        getMaxFood(t)],
-        [`mini-oxy-${t.id}`,   t.oxygen,      getMaxOxygen(t)],
-        [`mini-clean-${t.id}`, t.cleanliness, getMaxCleanliness(t)],
-      ]) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        el.style.setProperty('--pct', Math.min(100, (val / (max || 100)) * 100).toFixed(1));
-        el.classList.toggle('danger', val < 30);
-      }
+    for (const [id, val, max] of [
+      [`mini-food-${t.id}`,  t.food,        getMaxFood(t)],
+      [`mini-oxy-${t.id}`,   t.oxygen,      getMaxOxygen(t)],
+      [`mini-clean-${t.id}`, t.cleanliness, getMaxCleanliness(t)],
+    ]) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.style.setProperty('--pct', Math.min(100, (val / (max || 100)) * 100).toFixed(1));
+      el.classList.toggle('danger', val < 30);
     }
   }
 }
@@ -2497,8 +2492,6 @@ function setupEventListeners() {
   document.getElementById('mini-conditions').addEventListener('click', e => {
     const ring = e.target.closest('[data-action]');
     if (!ring) return;
-    const tankId = parseInt(ring.dataset.tankId);
-    if (tankId !== state.activeTankId) { switchActiveTank(tankId); return; }
     const action = ring.dataset.action;
     if (action === 'feed')   document.getElementById('btn-feed').click();
     if (action === 'aerate') document.getElementById('btn-aerate').click();
