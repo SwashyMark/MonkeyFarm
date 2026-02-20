@@ -1449,8 +1449,6 @@ function buildPopCard(m, now, hasMagnifier) {
     ? (now - m.bornAt) * (debugMode ? debugSpeed : 1)
     : (m.ageAtDeath ?? (m.diedAt - m.bornAt));
 
-  const tankBadge = state.tanks.length > 1
-    ? `<span class="pop-tank-badge">T${(m.tankId ?? 0) + 1}</span>` : '';
   return `<div class="pop-card ${m.alive ? m.stage : 'dead'}">
     ${pregTimerStr ? `<span class="pop-preg" id="pop-preg-${m.id}">🤰 ${pregTimerStr}</span>` : ''}
     <span class="pop-card-emoji" ${emojiStyle}>${displayEmoji}</span>
@@ -1458,7 +1456,6 @@ function buildPopCard(m, now, hasMagnifier) {
     <div class="pop-card-badges">
       <span class="pop-stage">${stageLabel}</span>
       <span class="pop-gen">Gen ${m.generation}</span>
-      ${tankBadge}
     </div>
     <span class="pop-age" id="pop-age-${m.id}">${fmtAge(ageMs)}</span>
     <div class="pop-card-health">❤ <span class="pop-bar" id="pop-bar-${m.id}">${healthBar}</span> <span class="pop-hp" id="pop-hp-${m.id}">${Math.round(m.health)}/${stats.maxHealth}</span></div>
@@ -1496,20 +1493,21 @@ function renderPopulation() {
   if (!view || !view.classList.contains('active')) return;
 
   const now        = Date.now();
-  const aliveCount = state.monkeys.filter(m => m.alive).length;
-  const deadCount  = state.monkeys.filter(m => !m.alive).length;
+  const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId);
+  const aliveCount = tankMonkeys.filter(m => m.alive).length;
+  const deadCount  = tankMonkeys.filter(m => !m.alive).length;
   document.getElementById('population-view-title').textContent =
     `📋 Population — ${aliveCount} alive${deadCount ? ', ' + deadCount + ' dead' : ''}`;
 
   const list = document.getElementById('population-list');
 
-  if (!state.monkeys.length) {
+  if (!tankMonkeys.length) {
     list.innerHTML = '<div class="pop-empty">No sea monkeys yet.</div>';
     _popSignature = '';
     return;
   }
 
-  const sorted = [...state.monkeys].sort((a, b) => {
+  const sorted = [...tankMonkeys].sort((a, b) => {
     if (a.alive !== b.alive) return a.alive ? -1 : 1;
     return (a.bornAt ?? 0) - (b.bornAt ?? 0);
   });
