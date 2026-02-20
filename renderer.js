@@ -432,6 +432,7 @@ let fpsLowSince = null;        // timestamp when FPS first dropped below 30
 let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
 let paused = false;
 let pausedAt = 0;
+let limitViewToCap = localStorage.getItem('limitViewToCap') === '1';
 
 // Returns the currently-viewed tank object
 function activeTank() { return state.tanks[state.activeTankId]; }
@@ -1979,9 +1980,9 @@ function renderMonkeys() {
   const W = tankRect.width  || 560;
   const H = tankRect.height || 490;
 
-  // Build the set of monkey IDs to render — cap alive count to fpsStressPopulation
+  // Build the set of monkey IDs to render — optionally cap alive count to fpsStressPopulation
   const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId);
-  const aliveVisible = fpsStressPopulation !== null
+  const aliveVisible = (limitViewToCap && fpsStressPopulation !== null)
     ? tankMonkeys.filter(m => m.alive).slice(0, fpsStressPopulation)
     : tankMonkeys.filter(m => m.alive);
   const deadVisible  = tankMonkeys.filter(m => !m.alive);
@@ -2567,6 +2568,13 @@ function setupEventListeners() {
 
   document.getElementById('toggle-timers').addEventListener('change', (e) => {
     showTimers = e.target.checked;
+  });
+
+  const limitViewToggle = document.getElementById('toggle-limit-view');
+  limitViewToggle.checked = limitViewToCap;
+  limitViewToggle.addEventListener('change', (e) => {
+    limitViewToCap = e.target.checked;
+    localStorage.setItem('limitViewToCap', limitViewToCap ? '1' : '0');
   });
 
   document.getElementById('btn-debug').addEventListener('click', () => {
