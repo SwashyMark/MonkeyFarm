@@ -847,7 +847,7 @@ function gameTick(dtMs) {
     tank.oxygen      = Math.max(0, Math.min(getMaxOxygen(tank),      tank.oxygen      - OXYGEN_DRAIN_PER * aliveNonEgg.length * dtSec * mb.oxygenMult + (oxygenGain + aerRegen + BASE_OXYGEN_REGEN) * dtSec));
     tank.cleanliness = Math.max(0, Math.min(getMaxCleanliness(tank), tank.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadTank.length) * dtSec * mb.cleanMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
 
-    if (debugMode && tank.id === state.activeTankId) {
+    if (debugMode) {
       if (debugLocks.food   !== 'normal') tank.food        = debugLocks.food   === '0' ? 0 : 100;
       if (debugLocks.oxygen !== 'normal') tank.oxygen      = debugLocks.oxygen === '0' ? 0 : 100;
       if (debugLocks.clean  !== 'normal') tank.cleanliness = debugLocks.clean  === '0' ? 0 : 100;
