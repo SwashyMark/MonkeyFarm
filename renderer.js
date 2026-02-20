@@ -1443,7 +1443,7 @@ function buildPopCard(m, now, hasMagnifier) {
     ? (now - m.bornAt) * (debugMode ? debugSpeed : 1)
     : (m.ageAtDeath ?? (m.diedAt - m.bornAt));
 
-  return `<div class="pop-card ${m.alive ? m.stage : 'dead'}">
+  return `<div class="pop-card ${m.alive ? m.stage : 'dead'}" data-monkey-id="${m.id}">
     ${pregTimerStr ? `<span class="pop-preg" id="pop-preg-${m.id}">🤰 ${pregTimerStr}</span>` : ''}
     <span class="pop-card-emoji" ${emojiStyle}>${displayEmoji}</span>
     <div class="pop-card-name">${m.name} <span class="pop-sex">(${m.sex})</span></div>
@@ -2307,6 +2307,25 @@ function spawnBurstBubbles() {
 // 13. UI EVENT LISTENERS
 // ─────────────────────────────────────────────
 
+let _movingMonkeyId = null;
+
+function showMoveMonkeyModal(monkeyId) {
+  const m = state.monkeys.find(m => m.id === monkeyId);
+  if (!m || !m.alive || state.tanks.length <= 1) return;
+  _movingMonkeyId = monkeyId;
+  document.getElementById('move-monkey-title').textContent = `Move ${m.name} to...`;
+  const otherTanks = state.tanks.filter(t => t.id !== m.tankId);
+  document.getElementById('move-monkey-tanks').innerHTML = otherTanks.map(t =>
+    `<button class="btn primary" data-move-tank="${t.id}">${t.name}</button>`
+  ).join('');
+  document.getElementById('move-monkey-modal').classList.add('open');
+}
+
+function closeMoveMonkeyModal() {
+  document.getElementById('move-monkey-modal').classList.remove('open');
+  _movingMonkeyId = null;
+}
+
 function addWater() {
   const t = activeTank();
   if (t.waterAdded) return;
@@ -2335,6 +2354,32 @@ function releaseEggs() {
 }
 
 function setupEventListeners() {
+  // Move monkey modal
+  document.getElementById('move-monkey-cancel').addEventListener('click', closeMoveMonkeyModal);
+  document.getElementById('move-monkey-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('move-monkey-modal')) closeMoveMonkeyModal();
+    const btn = e.target.closest('[data-move-tank]');
+    if (btn && _movingMonkeyId !== null) {
+      const m = state.monkeys.find(m => m.id === _movingMonkeyId);
+      if (m) {
+        const destId = Number(btn.dataset.moveTank);
+        const destTank = state.tanks.find(t => t.id === destId);
+        addLog(`🔀 ${m.name} moved to ${destTank.name}.`, null, destId);
+        m.tankId = destId;
+        _popSignature = '';
+        saveState();
+      }
+      closeMoveMonkeyModal();
+    }
+  });
+
+  // Population list: click card to move monkey
+  document.getElementById('population-list').addEventListener('click', (e) => {
+    if (state.tanks.length <= 1) return;
+    const card = e.target.closest('.pop-card[data-monkey-id]');
+    if (card) showMoveMonkeyModal(Number(card.dataset.monkeyId));
+  });
+
   document.getElementById('btn-use-life-booster').addEventListener('click', useLifeBooster);
   document.getElementById('btn-use-egg-pack').addEventListener('click', useBoosterEggPack);
   document.getElementById('btn-use-glowing-flakes').addEventListener('click', useGlowingFlakes);

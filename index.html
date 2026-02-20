@@ -459,7 +459,7 @@
       }
       .pop-card {
         background: #0d2137; border: 1px solid #1a3a5c; border-radius: 8px;
-        padding: 10px 8px;
+        padding: 10px 8px; cursor: pointer;
         display: flex; flex-direction: column; align-items: center; gap: 4px;
         text-align: center; position: relative;
       }
@@ -604,6 +604,27 @@
       .tank-tab:last-child { border-right: 1px solid #1a3a5c; }
       .tank-tab:hover { background: rgba(13,33,55,0.9); color: #aad4ee; }
       .tank-tab.active { background: #0d2137; color: #7fd8ff; border-bottom: 1px solid #0d2137; }
+
+      /* ── MOVE MONKEY MODAL ── */
+      #move-monkey-modal {
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,5,15,0.75);
+        display: none; align-items: center; justify-content: center;
+      }
+      #move-monkey-modal.open { display: flex; }
+      #move-monkey-popup {
+        background: #0d2137; border: 1px solid #1a5f8a;
+        border-radius: 10px; padding: 20px 24px;
+        box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+        display: flex; flex-direction: column; gap: 12px;
+        min-width: 200px; align-items: center;
+      }
+      #move-monkey-title {
+        font-size: 13px; font-weight: bold; color: #7fd8ff;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px; width: 100%; text-align: center;
+      }
+      #move-monkey-tanks { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+      #move-monkey-tanks .btn { width: 100%; }
 
       /* ── LIFE SUPPORT VIEW ── */
       #life-support-view {
@@ -880,6 +901,15 @@
             <div class="ms-section-header">🏅 Milestones</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- MOVE MONKEY MODAL -->
+    <div id="move-monkey-modal">
+      <div id="move-monkey-popup">
+        <div id="move-monkey-title">Move to...</div>
+        <div id="move-monkey-tanks"></div>
+        <button class="btn" id="move-monkey-cancel">Cancel</button>
       </div>
     </div>
 
