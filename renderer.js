@@ -1763,7 +1763,7 @@ function renderAll() {
           fpsStressPopulation = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId).length;
           state.fpsStressPop = fpsStressPopulation;
           const stressEl = document.getElementById('fps-stress-pop');
-          if (stressEl) stressEl.textContent = fpsStressPopulation;
+          if (stressEl) stressEl.value = fpsStressPopulation;
           const resetRow = document.getElementById('fps-stress-reset-row');
           if (resetRow) resetRow.style.display = '';
         }
@@ -2483,12 +2483,24 @@ function setupEventListeners() {
     addNotification('🗑️ Tank reset');
   });
 
+  document.getElementById('fps-stress-pop').addEventListener('change', () => {
+    const input = document.getElementById('fps-stress-pop');
+    const val = parseInt(input.value);
+    if (!isNaN(val) && val >= 1) {
+      fpsStressPopulation = val;
+      fpsLowSince = null;
+      state.fpsStressPop = val;
+      document.getElementById('fps-stress-reset-row').style.display = '';
+      saveState();
+    }
+  });
+
   document.getElementById('btn-reset-fps-stress').addEventListener('click', () => {
     fpsStressPopulation = null;
     fpsLowSince = null;
     state.fpsStressPop = null;
-    const el = document.getElementById('fps-stress-pop');
-    if (el) el.textContent = '—';
+    const input = document.getElementById('fps-stress-pop');
+    if (input) input.value = '';
     const resetRow = document.getElementById('fps-stress-reset-row');
     if (resetRow) resetRow.style.display = 'none';
     saveState();
@@ -2827,7 +2839,7 @@ function initGame() {
   if (state.fpsStressPop != null) {
     fpsStressPopulation = state.fpsStressPop;
     const el = document.getElementById('fps-stress-pop');
-    if (el) el.textContent = fpsStressPopulation;
+    if (el) el.value = fpsStressPopulation;
     const resetRow = document.getElementById('fps-stress-reset-row');
     if (resetRow) resetRow.style.display = '';
   }

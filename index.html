@@ -920,7 +920,9 @@
           </div>
           <div class="settings-row">
             <span style="color:#5599bb;">Pop at FPS stress</span>
-            <span id="fps-stress-pop" style="font-size:11px; color:#7faabb; font-variant-numeric:tabular-nums;">—</span>
+            <input id="fps-stress-pop" type="number" min="1" step="1"
+              style="width:56px; background:#0a1628; border:1px solid #1a3a5c; border-radius:4px; color:#7faabb; font-size:11px; font-variant-numeric:tabular-nums; padding:2px 4px; text-align:right;"
+              placeholder="—">
           </div>
           <div class="settings-row" id="fps-stress-reset-row" style="display:none;">
             <button class="btn" id="btn-reset-fps-stress" style="font-size:10px; padding:3px 8px; color:#ff9944; border-color:#7a4a22;">🔄 Reset FPS Cap</button>
