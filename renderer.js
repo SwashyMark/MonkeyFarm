@@ -1757,7 +1757,7 @@ function renderAll() {
       if (currentFps < 38) {
         if (fpsLowSince === null) fpsLowSince = now;
         else if (now - fpsLowSince >= 5000) {
-          fpsStressPopulation = state.monkeys.length;
+          fpsStressPopulation = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId).length;
           state.fpsStressPop = fpsStressPopulation;
           const stressEl = document.getElementById('fps-stress-pop');
           if (stressEl) stressEl.textContent = fpsStressPopulation;
