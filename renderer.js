@@ -1979,19 +1979,24 @@ function renderMonkeys() {
   const W = tankRect.width  || 560;
   const H = tankRect.height || 490;
 
-  // Remove DOM els for monkeys no longer in state or on a different tank
-  const activeMonkeyIds = new Set(
-    state.monkeys.filter(m => m.tankId === state.activeTankId).map(m => m.id)
-  );
+  // Build the set of monkey IDs to render — cap alive count to fpsStressPopulation
+  const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId);
+  const aliveVisible = fpsStressPopulation !== null
+    ? tankMonkeys.filter(m => m.alive).slice(0, fpsStressPopulation)
+    : tankMonkeys.filter(m => m.alive);
+  const deadVisible  = tankMonkeys.filter(m => !m.alive);
+  const visibleIds   = new Set([...aliveVisible, ...deadVisible].map(m => m.id));
+
+  // Remove DOM els for monkeys outside the visible set
   for (const id of Object.keys(monkeyEls)) {
-    if (!activeMonkeyIds.has(Number(id))) {
+    if (!visibleIds.has(Number(id))) {
       monkeyEls[id].remove();
       delete monkeyEls[id];
     }
   }
 
   for (const m of state.monkeys) {
-    if (m.tankId !== state.activeTankId) continue;
+    if (!visibleIds.has(m.id)) continue;
     let el = monkeyEls[m.id];
     if (!el) {
       el = document.createElement('div');
