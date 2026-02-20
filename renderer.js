@@ -1987,6 +1987,10 @@ function renderMonkeys() {
   const deadVisible  = tankMonkeys.filter(m => !m.alive);
   const visibleIds   = new Set([...aliveVisible, ...deadVisible].map(m => m.id));
 
+  const hiddenCount = tankMonkeys.filter(m => m.alive).length - aliveVisible.length;
+  const banner = document.getElementById('fps-cap-banner');
+  if (banner) banner.style.display = hiddenCount > 0 ? '' : 'none';
+
   // Remove DOM els for monkeys outside the visible set
   for (const id of Object.keys(monkeyEls)) {
     if (!visibleIds.has(Number(id))) {
