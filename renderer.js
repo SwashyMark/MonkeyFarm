@@ -430,6 +430,7 @@ let fpsWindowStart = 0;
 let renderDt = 25; // ms since last render frame, used for delta-time movement
 let fpsLowSince = null;        // timestamp when FPS first dropped below 30
 let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
+let paused = false;
 
 // Returns the currently-viewed tank object
 function activeTank() { return state.tanks[state.activeTankId]; }
@@ -2483,6 +2484,16 @@ function setupEventListeners() {
     addNotification('🔄 FPS cap cleared');
   });
 
+  document.getElementById('btn-pause').addEventListener('click', () => {
+    paused = !paused;
+    const btn = document.getElementById('btn-pause');
+    btn.textContent = paused ? '▶' : '⏸';
+    btn.classList.toggle('paused', paused);
+    btn.title = paused ? 'Resume simulation' : 'Pause simulation';
+    if (paused) addNotification('⏸ Paused');
+    else        addNotification('▶ Resumed');
+  });
+
   // Sidebar collapse toggle
   document.getElementById('sidebar-collapse-btn').addEventListener('click', () => {
     const mini = document.body.classList.toggle('sidebar-mini');
@@ -2793,6 +2804,7 @@ function initGame() {
 
   // Tick loop: every 1000ms
   setInterval(() => {
+    if (paused) { state.lastTick = Date.now(); return; }
     const now = Date.now();
     const dt = now - (state.lastTick || now);
     state.lastTick = now;

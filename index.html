@@ -45,6 +45,10 @@
         transition: background 0.15s, color 0.15s; flex-shrink: 0;
       }
       #btn-settings:hover { background: #0d2137; color: #7fd8ff; }
+      #btn-pause { background: none; border: 1px solid #1a3a5c; border-radius: 6px; color: #5599bb; font-size: 18px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s, border-color 0.15s; flex-shrink: 0; }
+      #btn-pause:hover { background: #0d2137; color: #7fd8ff; }
+      #btn-pause.paused { border-color: #aa5500; color: #ffaa44; background: #2a1500; }
+      #btn-pause.paused:hover { background: #3a2000; }
 
       /* Settings popup */
       #settings-overlay {
@@ -811,6 +815,7 @@
           <span class="hstat-value" id="cnt-adults">0</span>
         </div>
       </div>
+      <button id="btn-pause" title="Pause simulation">⏸</button>
       <button id="btn-dex" title="Monkeydex — Rare Variants">🔬</button>
       <button id="btn-settings" title="Settings">⚙️</button>
       <div class="header-stats">
