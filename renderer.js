@@ -638,6 +638,12 @@ function killMonkey(monkey, cause) {
   state.stats.totalDied++;
   if (cause === 'old age') addXP(15);
   addLog(`💀 ${monkey.name} died (${cause})`, `💀 died (${cause})`, monkey.tankId);
+  const condRow = document.querySelector(`[data-cond-tank="${monkey.tankId}"]`);
+  if (condRow) {
+    condRow.classList.remove('tank-row-flash');
+    void condRow.offsetWidth; // restart animation if row is already flashing
+    condRow.classList.add('tank-row-flash');
+  }
 }
 
 function createMolt(m, fromStage) {

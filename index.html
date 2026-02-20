@@ -156,6 +156,12 @@
         padding: 4px 0; cursor: pointer;
       }
       .tank-cond-row + .tank-cond-row { border-top: 1px solid #0a1a2c; }
+      .tank-row-flash { animation: tank-death-flash 2s ease-out forwards; border-radius: 4px; }
+      @keyframes tank-death-flash {
+        0%   { background: rgba(220, 50, 50, 0.55); }
+        60%  { background: rgba(220, 50, 50, 0.2); }
+        100% { background: transparent; }
+      }
       .tank-cond-name { font-size: 10px; color: #5599bb; flex: 1; }
       .tank-cond-row.active .tank-cond-name { color: #7fd8ff; font-weight: bold; }
       .tank-cond-rings { display: flex; gap: 5px; }
