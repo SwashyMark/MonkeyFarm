@@ -1496,7 +1496,7 @@ function renderPopulation() {
   const view = document.getElementById('population-view');
   if (!view || !view.classList.contains('active')) return;
 
-  const now        = Date.now();
+  const now        = paused ? pausedAt : Date.now();
   const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId);
   const aliveCount = tankMonkeys.filter(m => m.alive).length;
   const deadCount  = tankMonkeys.filter(m => !m.alive).length;
@@ -2501,6 +2501,11 @@ function setupEventListeners() {
         if (t.skimmer.startedAt  != null) t.skimmer.startedAt  += pauseDuration;
         if (t.feeder.startedAt   != null) t.feeder.startedAt   += pauseDuration;
         if (t.purifyStartTime    != null) t.purifyStartTime    += pauseDuration;
+      }
+      for (const m of state.monkeys) {
+        if (m.stageStartTime != null) m.stageStartTime += pauseDuration;
+        if (m.pregnantSince  != null) m.pregnantSince  += pauseDuration;
+        if (m.bornAt         != null) m.bornAt         += pauseDuration;
       }
       addNotification('▶ Resumed');
     }
