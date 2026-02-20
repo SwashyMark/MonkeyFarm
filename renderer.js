@@ -1873,9 +1873,11 @@ function renderGauges() {
     _gaugesSig = tankSig;
     container.innerHTML = state.tanks.map(t =>
       `<div class="tank-cond-row" data-cond-tank="${t.id}">
-        <div class="tank-cond-name">${t.name}</div>
+        <div class="tank-cond-left">
+          <div class="tank-cond-name">${t.name}</div>
+          <span class="tank-cap-warn" id="cap-warn-${t.id}" style="display:none">⚠️ Full Capacity</span>
+        </div>
         <div class="tank-cond-rings">
-          <span class="tank-cap-warn" id="cap-warn-${t.id}" style="display:none" title="Tank at full capacity — new eggs will be infertile">⚠️</span>
           <div class="tank-ring food"   id="ring-food-${t.id}"><span>🍔</span></div>
           <div class="tank-ring oxygen" id="ring-oxygen-${t.id}"><span>💨</span></div>
           <div class="tank-ring clean"  id="ring-clean-${t.id}"><span>🧹</span></div>
