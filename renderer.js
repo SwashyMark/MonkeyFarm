@@ -2496,14 +2496,20 @@ function setupEventListeners() {
 // 14. TANK SELECTOR + MULTI-TANK ACTIONS
 // ─────────────────────────────────────────────
 
+let _tankSelectorSig = '';
+
 function renderTankSelector() {
   const bar = document.getElementById('tank-selector-bar');
   if (!bar) return;
+  const canAfford = state.currency >= 1000;
+  const sig = state.tanks.map(t => t.id + ':' + t.name).join('|')
+    + `|active:${state.activeTankId}|buy:${canAfford ? 1 : 0}`;
+  if (sig === _tankSelectorSig) return;
+  _tankSelectorSig = sig;
   const btns = state.tanks.map(t =>
     `<button class="tank-sel-btn${t.id === state.activeTankId ? ' active' : ''}" data-tank-id="${t.id}">${t.name}</button>`
   ).join('');
-  const buyDisabled = state.currency < 1000 ? ' disabled' : '';
-  const buyBtn = `<button class="tank-sel-btn tank-buy-btn"${buyDisabled} id="btn-buy-tank">＋ Tank (£1,000)</button>`;
+  const buyBtn = `<button class="tank-sel-btn tank-buy-btn"${canAfford ? '' : ' disabled'} id="btn-buy-tank">＋ Tank (£1,000)</button>`;
   bar.innerHTML = btns + buyBtn;
 }
 
