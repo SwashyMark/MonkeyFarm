@@ -462,6 +462,7 @@ const DEFAULT_TANK = {
   popLevel: 0,
   eggSkimmer: false,
   eggSkimmerActive: false,
+  mutationInhibitorUntil: 0,
 };
 
 const DEFAULT_STATE = {
@@ -518,14 +519,15 @@ const DEFAULT_STATE = {
     boosterEggPack: 0,
     glowingFlakes: 0,
     magnifyingGlass: 0,
+    mutationInhibitor: 0,
   },
   offlineProtectionExpiry: 0,
   gracePeriodUntil: 0,
   shop: {
     rationBoostExpiry:  0,
     waterTreatExpiry:   0,
+    eggSurgeExpiry:     0,
     autoFeeder:         false,
-
     mutationCatalyst:   false,
   },
 };
@@ -548,7 +550,8 @@ let fpsLowSince = null;        // timestamp when FPS first dropped below 30
 let fpsStressPopulation = null; // population recorded when FPS stayed low for 5s
 let paused = false;
 let pausedAt = 0;
-let limitViewToCap = localStorage.getItem('limitViewToCap') !== '0';  // default on
+let limitViewToCap    = localStorage.getItem('limitViewToCap')    !== '0';  // default on
+let bioGlowAnimation  = localStorage.getItem('bioGlowAnimation')  !== '0';  // default on
 
 // Returns the currently-viewed tank object
 function activeTank() { return state.tanks[state.activeTankId]; }
@@ -679,7 +682,7 @@ function migrateState(loaded) {
 
   // Shop migration
   if (!s.shop) s.shop = {};
-  const defaultShop = { rationBoostExpiry: 0, waterTreatExpiry: 0, autoFeeder: false, mutationCatalyst: false };
+  const defaultShop = { rationBoostExpiry: 0, waterTreatExpiry: 0, eggSurgeExpiry: 0, autoFeeder: false, mutationCatalyst: false };
   s.shop = Object.assign({}, defaultShop, s.shop);
   // Backfill popLevel — old saves had 500 cap = level 8
   for (const t of s.tanks) {
@@ -717,7 +720,7 @@ function migrateState(loaded) {
 // ─────────────────────────────────────────────
 function addLog(msg, group = null, tankId = undefined) {
   state.log.unshift({ msg, isNew: true, group: group ?? msg, tankId });
-  if (state.log.length > 80) state.log.pop();
+  if (state.log.length > 500) state.log.pop();
 }
 
 // ── SELL PRICING ─────────────────────────────────────────────────────────────
@@ -775,18 +778,37 @@ const SHOP_ITEMS = {
   offlineProtection: { label: '🛡 Offline Protection', desc: 'Prevent deaths while offline. Stackable in 6h blocks (max 24h).', cost: 75,  type: 'timed'     },
   rationBoost:       { label: '🍖 Ration Boost',       desc: 'Halves food drain for 2 hours.',                                  cost: 50,  type: 'timed'     },
   waterTreatment:    { label: '💧 Water Treatment',    desc: 'Halves pollution gain for 2 hours.',                              cost: 60,  type: 'timed'     },
+  eggSurge:          { label: '🥚 Egg Surge',          desc: 'Doubles eggs per pregnancy for 1 hour.',                          cost: 120, type: 'timed'     },
   // Permanent
   autoFeeder:        { label: '🤖 Auto-Feeder',        desc: 'Passively adds food (+5 every 30s per tank).',       cost: 500, type: 'permanent' },
   mutationCatalyst:  { label: '🧬 Mutation Catalyst',  desc: 'Permanently increases base mutation rate by 1.5×.',  cost: 300, type: 'permanent' },
+  // Inventory consumables
+  invLifeBooster:      { label: '🧪 Life Booster',       desc: 'Gives all adults in active tank +10 min lifespan.',  cost: 100, type: 'inventory', invKey: 'lifeBooster'      },
+  invBoosterEggPack:   { label: '🥚 Booster Egg Pack',   desc: 'Spawns 5 bonus eggs into the active tank.',         cost: 75,  type: 'inventory', invKey: 'boosterEggPack'   },
+  invGlowingFlakes:    { label: '✨ Glowing Flakes',     desc: '10× mutation rate for next birth (parents take damage).', cost: 250, type: 'inventory', invKey: 'glowingFlakes' },
+  invMutInhibitor:     { label: '🧪 Mutation Inhibitor', desc: 'Stops mutations in active tank for 10 minutes.',    cost: 175, type: 'inventory', invKey: 'mutationInhibitor' },
 };
 
-const OFFLINE_PROT_BLOCK = 6 * 60 * 60 * 1000; // 6 hours per block
-const TIMED_BOOST_MS     = 2 * 60 * 60 * 1000; // 2 hours for boosts
+const OFFLINE_PROT_BLOCK  = 6 * 60 * 60 * 1000; // 6 hours per block
+const TIMED_BOOST_MS      = 2 * 60 * 60 * 1000; // 2 hours for boosts
+const EGG_SURGE_MS        = 1 * 60 * 60 * 1000; // 1 hour for egg surge
+const MUT_INHIBITOR_MS    = 10 * 60 * 1000;      // 10 minutes
 
 function buyShopItem(key) {
   const item = SHOP_ITEMS[key];
   if (!item) return;
   const now = Date.now();
+
+  // Inventory consumable — just add to stock
+  if (item.type === 'inventory') {
+    if (state.currency < item.cost) { addNotification('Not enough funds!'); return; }
+    state.currency -= item.cost;
+    state.inventory[item.invKey] = (state.inventory[item.invKey] || 0) + 1;
+    addLog(`🛒 Purchased ${item.label}.`);
+    saveState();
+    renderShop();
+    return;
+  }
 
   // Permanent — check not already owned
   if (item.type === 'permanent') {
@@ -818,6 +840,10 @@ function buyShopItem(key) {
     state.currency -= item.cost;
     state.shop.waterTreatExpiry = Math.max(now, state.shop.waterTreatExpiry || 0) + TIMED_BOOST_MS;
     addLog(`💧 Water Treatment active for 2h.`);
+  } else if (key === 'eggSurge') {
+    state.currency -= item.cost;
+    state.shop.eggSurgeExpiry = Math.max(now, state.shop.eggSurgeExpiry || 0) + EGG_SURGE_MS;
+    addLog(`🥚 Egg Surge active for 1h — doubled egg counts!`);
   }
 
   saveState();
@@ -886,12 +912,15 @@ function renderShop() {
   const graceRem = grace ? Math.ceil((state.gracePeriodUntil - now) / 1000) : 0;
 
   const protRem  = fmtBoostRemaining(state.offlineProtectionExpiry);
-  const rationRem = fmtBoostRemaining(state.shop.rationBoostExpiry);
-  const waterRem  = fmtBoostRemaining(state.shop.waterTreatExpiry);
+  const rationRem  = fmtBoostRemaining(state.shop.rationBoostExpiry);
+  const waterRem   = fmtBoostRemaining(state.shop.waterTreatExpiry);
+  const eggSurgeRem = fmtBoostRemaining(state.shop.eggSurgeExpiry);
   const maxProt   = (state.offlineProtectionExpiry || 0) >= now + 24 * 60 * 60 * 1000 - 1000;
 
-  const sig = [state.currency, protRem, rationRem, waterRem,
+  const sig = [state.currency, protRem, rationRem, waterRem, eggSurgeRem,
     state.shop.autoFeeder, state.shop.mutationCatalyst,
+    state.inventory.lifeBooster, state.inventory.boosterEggPack,
+    state.inventory.glowingFlakes, state.inventory.mutationInhibitor,
     graceRem > 0 ? Math.floor(graceRem / 5) : 0].join('|');
   if (sig === _shopSig) return;
   _shopSig = sig;
@@ -951,9 +980,25 @@ function renderShop() {
     ${offlineBuyBtn}
     ${timedRow('rationBoost', rationRem)}
     ${timedRow('waterTreatment', waterRem)}
+    ${timedRow('eggSurge', eggSurgeRem)}
     <div class="shop-section-header">⭐ Permanent Upgrades</div>
     ${permRow('autoFeeder')}
     ${permRow('mutationCatalyst')}
+    <div class="shop-section-header">🎒 Consumables</div>
+    ${['invLifeBooster','invBoosterEggPack','invGlowingFlakes','invMutInhibitor'].map(key => {
+      const item = SHOP_ITEMS[key];
+      const stock = state.inventory[item.invKey] || 0;
+      return `<div class="shop-item">
+        <div class="shop-item-info">
+          <span class="shop-item-label">${item.label} <span class="shop-stock-badge">Owned: ${stock}</span></span>
+          <span class="shop-item-desc">${item.desc}</span>
+        </div>
+        <div class="shop-item-action">
+          <span class="shop-item-cost">£${item.cost}</span>
+          <button class="btn shop-buy-btn" data-shop-buy="${key}" ${canAfford(key) ? '' : 'disabled'}>Buy</button>
+        </div>
+      </div>`;
+    }).join('')}
   `;
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1065,9 +1110,9 @@ function getMasteryBonuses() {
 // ─────────────────────────────────────────────
 // 8. GENETICS
 // ─────────────────────────────────────────────
-function inheritGenes(parentA, parentB, glowingFlakesActive = false) {
-  const catalystMult = state.shop?.mutationCatalyst ? 1.5 : 1;
-  const mutMult = (glowingFlakesActive ? 10 : 1) * catalystMult;
+function inheritGenes(parentA, parentB, glowingFlakesActive = false, noMutation = false) {
+  const catalystMult = (!noMutation && state.shop?.mutationCatalyst) ? 1.5 : 1;
+  const mutMult = noMutation ? 0 : (glowingFlakesActive ? 10 : 1) * catalystMult;
 
   function inheritLocus(pA, pB, geneId) {
     const gene = GENE_DATA.find(g => g.id === geneId);
@@ -1395,10 +1440,13 @@ function processBirths(aliveMonkeys, tank) {
     }
 
     const mb = getMasteryBonuses();
-    const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
+    const eggSurgeActive = Date.now() < (state.shop?.eggSurgeExpiry || 0);
+    const inhibitorActive = Date.now() < (tank.mutationInhibitorUntil || 0);
+    const baseCount = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
+    const count = eggSurgeActive ? baseCount * 2 : baseCount;
     for (let i = 0; i < count; i++) {
       if (aliveMonkeys.length >= getMaxPop(tank)) break;
-      const dna = inheritGenes(m, father || m, usedFlakes);
+      const dna = inheritGenes(m, father || m, usedFlakes, inhibitorActive);
       const baby = createMonkey({ generation: gen, dna, tankId: tank.id });
       if (tank.eggSkimmerActive) baby.inStorage = true;
       // Build log tag: phenotype + expressed functional traits
@@ -1550,6 +1598,12 @@ function checkMilestones() {
     state.inventory.lifeBooster++;
     addXP(75);
     addLog('🧬 Milestone: Second generation born! +1 🧪 Life Booster');
+  }
+  if (!ms.gen3 && state.stats.totalGenerations >= 3) {
+    ms.gen3 = true;
+    state.inventory.mutationInhibitor++;
+    addXP(75);
+    addLog('🧬 Milestone: Third generation! +1 🧪 Mutation Inhibitor');
   }
   if (!ms.gen5 && state.stats.totalGenerations >= 5) {
     ms.gen5 = true;
@@ -1737,8 +1791,17 @@ function renderMonkeydex() {
     const def = PHENOTYPE_DEFS[v.key];
 
     let styleAttr = '';
+    let bioGlowClass = '';
     if (entry.discovered && def) {
-      if (def.opacity) {
+      if (v.key === 'C_BIO') {
+        if (bioGlowAnimation) {
+          bioGlowClass = ' bio-glow';
+        } else {
+          const filterPart = def.filterStr ? `filter:${def.filterStr};` : '';
+          const shadowPart = def.shadow ? `text-shadow:${def.shadow};` : '';
+          if (filterPart || shadowPart) styleAttr = ` style="${filterPart}${shadowPart}"`;
+        }
+      } else if (def.opacity) {
         styleAttr = ` style="opacity:${def.opacity}; filter:${def.filterStr};"`;
       } else {
         const filterPart = def.filterStr ? `filter:${def.filterStr};` : '';
@@ -1752,7 +1815,7 @@ function renderMonkeydex() {
     const countStr = `${entry.count}/${threshold}`;
 
     return `<div class="dex-card ${entry.discovered ? '' : 'undiscovered'}">
-      <div class="dex-emoji"${styleAttr}>${entry.discovered ? '🦐' : '❓'}</div>
+      <div class="dex-emoji${bioGlowClass}"${styleAttr}>${entry.discovered ? '🦐' : '❓'}</div>
       <div class="dex-name">${entry.discovered ? v.name + masteredStar : '???'}</div>
       ${tierLabel ? `<div class="dex-rarity">${tierLabel}</div>` : ''}
       <div class="dex-count">${entry.discovered ? countStr : '?/?'}</div>
@@ -1805,10 +1868,13 @@ let _popStageFilter = { egg: true, baby: true, juvenile: true, adult: true, dead
 let _tmSig        = '';
 let _tmEls        = {};  // tankId → cached dynamic element refs for tank manager
 
+
 function popSearchMatch(m, query) {
   if (!query) return true;
   const q = query.toLowerCase();
   if (m.name.toLowerCase().includes(q)) return true;
+  const sexLabel = m.sex === 'M' ? 'male' : m.sex === 'F' ? 'female' : '';
+  if (sexLabel === q) return true;
   if (m.dna) {
     const phenotype = resolveColorPhenotype(m.dna.body_color);
     const colourName = PHENOTYPE_DEFS[phenotype]?.name || phenotype;
@@ -1869,8 +1935,17 @@ function buildPopCard(m, now, hasMagnifier) {
   const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
   const def = PHENOTYPE_DEFS[phenotype];
   let emojiStyle = '';
+  let bioGlowClass = '';
   if (m.alive && def) {
-    if (def.opacity) {
+    if (phenotype === 'C_BIO') {
+      if (bioGlowAnimation) {
+        bioGlowClass = ' bio-glow';
+      } else {
+        const fp = def.filterStr ? `filter:${def.filterStr};` : '';
+        const sp = def.shadow    ? `text-shadow:${def.shadow};` : '';
+        if (fp || sp) emojiStyle = `style="${fp}${sp}"`;
+      }
+    } else if (def.opacity) {
       emojiStyle = `style="opacity:${def.opacity}; filter:${def.filterStr};"`;
     } else {
       const fp = def.filterStr ? `filter:${def.filterStr};` : '';
@@ -1891,7 +1966,7 @@ function buildPopCard(m, now, hasMagnifier) {
 
   return `<div class="pop-card ${m.alive ? m.stage : 'dead'}" data-monkey-id="${m.id}">
     ${pregTimerStr ? `<span class="pop-preg" id="pop-preg-${m.id}">🤰 ${pregTimerStr}</span>` : ''}
-    <span class="pop-card-emoji" ${emojiStyle}>${displayEmoji}</span>
+    <span class="pop-card-emoji${bioGlowClass}" ${emojiStyle}>${displayEmoji}</span>
     <div class="pop-card-name">${m.name} <span class="pop-sex">(${m.sex})</span></div>
     <div class="pop-card-badges">
       <span class="pop-stage">${stageLabel}</span>
@@ -2366,9 +2441,9 @@ function renderGauges() {
           <span class="tank-cap-warn" id="cap-warn-${t.id}" style="display:none">⚠️ Full Capacity</span>
         </div>
         <div class="tank-cond-rings">
-          <div class="tank-ring food"   id="ring-food-${t.id}"><span>🍔</span></div>
           <div class="tank-ring oxygen" id="ring-oxygen-${t.id}"><span>💨</span></div>
           <div class="tank-ring clean"  id="ring-clean-${t.id}"><span>🧹</span></div>
+          <div class="tank-ring food"   id="ring-food-${t.id}"><span>🍔</span></div>
         </div>
       </div>`
     ).join('');
@@ -2385,9 +2460,9 @@ function renderGauges() {
     if (warnEl) warnEl.style.display = atCapacity ? '' : 'none';
 
     const sets = [
-      ['ring-food-'   + t.id, t.food,        getMaxFood(t)],
       ['ring-oxygen-' + t.id, t.oxygen,       getMaxOxygen(t)],
       ['ring-clean-'  + t.id, t.cleanliness, getMaxCleanliness(t)],
+      ['ring-food-'   + t.id, t.food,        getMaxFood(t)],
     ];
     for (const [id, val, max] of sets) {
       const el = document.getElementById(id);
@@ -2406,14 +2481,14 @@ function renderGauges() {
     if (miniContainer.dataset.sig !== miniSig) {
       miniContainer.dataset.sig = miniSig;
       miniContainer.innerHTML =
-        `<div class="mini-ring food"   id="mini-food-${t.id}"  data-action="feed"   data-tank-id="${t.id}"><span>🍔</span></div>
-         <div class="mini-ring oxygen" id="mini-oxy-${t.id}"   data-action="aerate" data-tank-id="${t.id}"><span>💨</span></div>
-         <div class="mini-ring clean"  id="mini-clean-${t.id}" data-action="clean"  data-tank-id="${t.id}"><span>🧹</span></div>`;
+        `<div class="mini-ring oxygen" id="mini-oxy-${t.id}"   data-action="aerate" data-tank-id="${t.id}"><span>💨</span></div>
+         <div class="mini-ring clean"  id="mini-clean-${t.id}" data-action="clean"  data-tank-id="${t.id}"><span>🧹</span></div>
+         <div class="mini-ring food"   id="mini-food-${t.id}"  data-action="feed"   data-tank-id="${t.id}"><span>🍔</span></div>`;
     }
     for (const [id, val, max] of [
-      [`mini-food-${t.id}`,  t.food,        getMaxFood(t)],
       [`mini-oxy-${t.id}`,   t.oxygen,      getMaxOxygen(t)],
       [`mini-clean-${t.id}`, t.cleanliness, getMaxCleanliness(t)],
+      [`mini-food-${t.id}`,  t.food,        getMaxFood(t)],
     ]) {
       const el = document.getElementById(id);
       if (!el) continue;
@@ -2447,9 +2522,9 @@ const monkeyEls = {};
 
 function renderMonkeys() {
   const container = document.getElementById('monkey-container');
-  const tankRect   = document.getElementById('tank').getBoundingClientRect();
+  const tankRect   = container.getBoundingClientRect();
   const W = tankRect.width  || 560;
-  const H = tankRect.height || 490;
+  const H = tankRect.height || 462;
 
   // Build the set of monkey IDs to render — optionally cap alive count to fpsStressPopulation
   const tankMonkeys = state.monkeys.filter(m => m.tankId === state.activeTankId && !m.inStorage);
@@ -2500,7 +2575,9 @@ function renderMonkeys() {
       el._tailCode = m.dna ? resolveAllele(m.dna.tail_shape, 'tail_shape') : 'T_STD';
       const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
       const def = PHENOTYPE_DEFS[phenotype] || {};
-      if (def.opacity) {
+      el._isBio = phenotype === 'C_BIO';
+      if (el._isBio) {
+      } else if (def.opacity) {
         emojiSpan.style.filter  = def.filterStr || '';
         emojiSpan.style.opacity = String(def.opacity);
       } else {
@@ -2517,8 +2594,21 @@ function renderMonkeys() {
     const getStats = () => { if (!_stats) _stats = resolveStats(m); return _stats; };
 
     // Dirty-check className
-    const newClass = 'monkey ' + (m.alive ? m.stage : 'dead') + (m.pregnant ? ' pregnant' : '');
+    const newClass = 'monkey ' + (m.alive ? m.stage : 'dead') + (m.pregnant ? ' pregnant' : '') + (el._isBio && bioGlowAnimation ? ' bio-glow' : '');
     if (el.className !== newClass) el.className = newClass;
+
+    // Bio-glow style sync — updates inline filter/shadow when setting is toggled live
+    if (el._isBio && el._bioGlowState !== bioGlowAnimation) {
+      el._bioGlowState = bioGlowAnimation;
+      const bd = PHENOTYPE_DEFS['C_BIO'];
+      if (bioGlowAnimation) {
+        el.style.filter = '';
+        el.style.textShadow = '';
+      } else {
+        el.style.filter     = bd.filterStr || '';
+        el.style.textShadow = bd.shadow    || '';
+      }
+    }
 
     // Emoji — dirty-check by stage+alive; tail/DNA never change
     const emojiSig = m.stage + (m.alive ? '1' : '0');
@@ -2696,13 +2786,6 @@ function renderTankManager() {
           <div class="tm-section-label">Conditions</div>
           <div class="tm-gauges">
             <div class="tm-gauge-row">
-              <span class="tm-gauge-icon">🍔</span>
-              <div class="tm-gauge-bar-wrap">
-                <div class="tm-gauge-bar food${t.food < 30 ? ' danger' : ''}" id="tm-gbar-food-${t.id}" style="width:${foodPct.toFixed(1)}%"></div>
-              </div>
-              <span class="tm-gauge-val" id="tm-gval-food-${t.id}">${Math.round(t.food)}/${maxFood}</span>
-            </div>
-            <div class="tm-gauge-row">
               <span class="tm-gauge-icon">💨</span>
               <div class="tm-gauge-bar-wrap">
                 <div class="tm-gauge-bar oxy${t.oxygen < 30 ? ' danger' : ''}" id="tm-gbar-oxy-${t.id}" style="width:${oxyPct.toFixed(1)}%"></div>
@@ -2715,6 +2798,13 @@ function renderTankManager() {
                 <div class="tm-gauge-bar clean${t.cleanliness < 30 ? ' danger' : ''}" id="tm-gbar-clean-${t.id}" style="width:${cleanPct.toFixed(1)}%"></div>
               </div>
               <span class="tm-gauge-val" id="tm-gval-clean-${t.id}">${Math.round(t.cleanliness)}/${maxClean}</span>
+            </div>
+            <div class="tm-gauge-row">
+              <span class="tm-gauge-icon">🍔</span>
+              <div class="tm-gauge-bar-wrap">
+                <div class="tm-gauge-bar food${t.food < 30 ? ' danger' : ''}" id="tm-gbar-food-${t.id}" style="width:${foodPct.toFixed(1)}%"></div>
+              </div>
+              <span class="tm-gauge-val" id="tm-gval-food-${t.id}">${Math.round(t.food)}/${maxFood}</span>
             </div>
           </div>
         </div>
@@ -2830,6 +2920,7 @@ function renderTankManager() {
       updateAddon(t.feeder,   els.feedTimer, els.feedBar);
     }
   }
+
 }
 
 function renderEventLog() {
@@ -3011,24 +3102,41 @@ function renderInventory() {
 
   document.getElementById('currency-balance').textContent = `£${(state.currency || 0).toLocaleString()}`;
 
-  document.getElementById('inv-life-booster-cnt').textContent = inv.lifeBooster;
-  document.getElementById('inv-egg-pack-cnt').textContent     = inv.boosterEggPack;
+  document.getElementById('inv-life-booster-cnt').textContent = inv.lifeBooster.toLocaleString();
+  document.getElementById('inv-egg-pack-cnt').textContent     = inv.boosterEggPack.toLocaleString();
   document.getElementById('btn-use-life-booster').disabled = inv.lifeBooster <= 0 || !hasLife;
   document.getElementById('btn-use-egg-pack').disabled     = inv.boosterEggPack <= 0 || !hasLife;
 
-  document.getElementById('inv-glowing-flakes-cnt').textContent = inv.glowingFlakes;
+  document.getElementById('inv-glowing-flakes-cnt').textContent = inv.glowingFlakes.toLocaleString();
   document.getElementById('btn-use-glowing-flakes').disabled = inv.glowingFlakes <= 0 || !hasLife;
   const flakesBadge = document.getElementById('glowing-flakes-active-badge');
   if (flakesBadge) flakesBadge.style.display = activeTank().glowingFlakesActive ? '' : 'none';
 
-  document.getElementById('inv-magnifying-glass-cnt').textContent = inv.magnifyingGlass;
+  document.getElementById('inv-magnifying-glass-cnt').textContent = inv.magnifyingGlass.toLocaleString();
   const mgBtn = document.getElementById('btn-toggle-magnifying-glass');
   mgBtn.disabled = inv.magnifyingGlass <= 0;
   mgBtn.textContent = state.magnifyingGlassMode ? '🔍 Genotype ON' : '🔍 Phenotype';
   mgBtn.classList.toggle('debug-active', state.magnifyingGlassMode);
 
+  const tank = activeTank();
+  const inhibUntil = tank?.mutationInhibitorUntil || 0;
+  const inhibRemMs = Math.max(0, inhibUntil - Date.now());
+  const inhibActive = inhibRemMs > 0;
+  document.getElementById('inv-mutation-inhibitor-cnt').textContent = inv.mutationInhibitor.toLocaleString();
+  const inhibBtn = document.getElementById('btn-use-mutation-inhibitor');
+  inhibBtn.disabled = inv.mutationInhibitor <= 0 || inhibActive;
+  const inhibBadge = document.getElementById('mutation-inhibitor-badge');
+  if (inhibActive) {
+    const remSec = Math.ceil(inhibRemMs / 1000);
+    const m = Math.floor(remSec / 60), s = remSec % 60;
+    inhibBadge.textContent = `● ACTIVE ${m}:${String(s).padStart(2,'0')}`;
+    inhibBadge.style.display = '';
+  } else {
+    inhibBadge.style.display = 'none';
+  }
+
   const storedEggCount = state.monkeys.filter(m => m.inStorage).length;
-  document.getElementById('inv-egg-storage-cnt').textContent = storedEggCount;
+  document.getElementById('inv-egg-storage-cnt').textContent = storedEggCount.toLocaleString();
   document.getElementById('btn-view-egg-storage').disabled = storedEggCount === 0;
 }
 
@@ -3087,6 +3195,7 @@ function addWater() {
 let _placingEggId    = null;
 let _placingGroupLabel = null;
 let _egsSearch       = '';
+const _egsCollapsed  = new Set();
 
 function storeEgg(id) {
   const m = state.monkeys.find(m => m.id === id);
@@ -3145,6 +3254,37 @@ function placeAllEggs(label, tankId) {
   renderEggStorage();
 }
 
+function sellStoredEgg(id) {
+  const m = state.monkeys.find(m => m.id === id && m.inStorage);
+  if (!m) return;
+  const price = calcSellPrice(m);
+  state.currency += price;
+  state.monkeys = state.monkeys.filter(m2 => m2.id !== id);
+  addLog(`💰 ${m.name} (stored egg) sold for £${price}.`);
+  saveState();
+  renderEggStorage();
+  renderInventory();
+}
+
+function sellStoredGroup(label) {
+  const eggs = state.monkeys.filter(m => {
+    if (!m.inStorage) return false;
+    const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
+    if ((PHENOTYPE_DEFS[phenotype]?.name || phenotype) !== label) return false;
+    return !_egsSearch || popSearchMatch(m, _egsSearch);
+  });
+  if (!eggs.length) return;
+  let total = 0;
+  const ids = new Set(eggs.map(m => m.id));
+  for (const m of eggs) total += calcSellPrice(m);
+  state.currency += total;
+  state.monkeys = state.monkeys.filter(m => !ids.has(m.id));
+  addLog(`💰 Sold ${eggs.length} ${label} egg${eggs.length > 1 ? 's' : ''} for £${total}.`);
+  saveState();
+  renderEggStorage();
+  renderInventory();
+}
+
 function renderEggStorage() {
   const list = document.getElementById('egg-storage-list');
   if (!list) return;
@@ -3178,7 +3318,16 @@ function renderEggStorage() {
     const eggCards = g.eggs.map(m => {
       const def = PHENOTYPE_DEFS[g.phenotype] || {};
       let emojiStyle = '';
-      if (def.opacity) {
+      let bioGlowClass = '';
+      if (g.phenotype === 'C_BIO') {
+        if (bioGlowAnimation) {
+          bioGlowClass = ' bio-glow';
+        } else {
+          const fp = def.filterStr ? `filter:${def.filterStr};` : '';
+          const sp = def.shadow    ? `text-shadow:${def.shadow};` : '';
+          if (fp || sp) emojiStyle = `style="${fp}${sp}"`;
+        }
+      } else if (def.opacity) {
         emojiStyle = `style="opacity:${def.opacity};filter:${def.filterStr};"`;
       } else {
         const fp = def.filterStr ? `filter:${def.filterStr};` : '';
@@ -3207,33 +3356,41 @@ function renderEggStorage() {
       ).join('');
 
       return `<div class="egs-egg-card${isPlacing ? ' placing' : ''}">
-        <span class="egs-egg-emoji-wrap" data-monkey-id="${m.id}" ${emojiStyle}>🥚</span>
+        <span class="egs-egg-emoji-wrap${bioGlowClass}" data-monkey-id="${m.id}" ${emojiStyle}>🥚</span>
         <div class="egs-egg-info">
           <span class="egs-egg-name">${m.name} · Gen ${m.generation}</span>
           <span class="egs-egg-traits">${traitsStr}</span>
         </div>
-        ${isPlacing && tankBtns
-          ? `<div class="egs-tank-btns">${tankBtns}</div>`
-          : `<button class="egs-place-btn" data-egg-id="${m.id}">Place in Tank ▾</button>`
-        }
+        <div class="egs-card-actions">
+          ${isPlacing ? '' : `<button class="egs-sell-btn" data-sell-egg="${m.id}">£${calcSellPrice(m)}</button>`}
+          ${isPlacing && tankBtns
+            ? `<div class="egs-tank-btns">${tankBtns}</div>`
+            : `<button class="egs-place-btn" data-egg-id="${m.id}">Place ▾</button>`
+          }
+        </div>
       </div>`;
     }).join('');
 
     const eligibleTanks = state.tanks.filter(t => t.waterPure);
     const isPlacingGroup = _placingGroupLabel === g.label;
+    const isCollapsed    = _egsCollapsed.has(g.label);
     const groupTankBtns = eligibleTanks.map(t =>
       `<button class="egs-tank-btn" data-place-all-tank="${t.id}" data-place-all-group="${g.label}">${t.name}</button>`
     ).join('');
-    const groupHeaderRight = isPlacingGroup && groupTankBtns
-      ? `<div class="egs-tank-btns">${groupTankBtns}</div>`
-      : `<button class="egs-place-all-btn" data-place-all-group="${g.label}">Place All ▾</button>`;
+    const groupTotal = g.eggs.reduce((sum, m) => sum + calcSellPrice(m), 0);
 
     return `<div class="egs-colour-group">
-      <div class="egs-group-header">
-        <span class="egs-group-label">${g.label} <span style="color:#2a6a9a;">(${g.eggs.length})</span></span>
-        ${groupHeaderRight}
+      <div class="egs-group-header" data-toggle-group="${g.label}" style="cursor:pointer">
+        <span class="egs-group-label">${isCollapsed ? '▶' : '▼'} ${g.label} <span style="color:#2a6a9a;">(${g.eggs.length})</span></span>
+        ${isCollapsed ? '' : `<div class="egs-group-actions">
+          ${isPlacingGroup ? '' : `<button class="egs-sell-all-btn" data-sell-all-group="${g.label}">Sell All £${groupTotal.toLocaleString()}</button>`}
+          ${isPlacingGroup && groupTankBtns
+            ? `<div class="egs-tank-btns">${groupTankBtns}</div>`
+            : `<button class="egs-place-all-btn" data-place-all-group="${g.label}">Place All ▾</button>`
+          }
+        </div>`}
       </div>
-      ${eggCards}
+      ${isCollapsed ? '' : eggCards}
     </div>`;
   }).join('');
 }
@@ -3324,6 +3481,15 @@ function setupEventListeners() {
   document.getElementById('btn-use-egg-pack').addEventListener('click', useBoosterEggPack);
   document.getElementById('btn-use-glowing-flakes').addEventListener('click', useGlowingFlakes);
   document.getElementById('btn-toggle-magnifying-glass').addEventListener('click', toggleMagnifyingGlass);
+  document.getElementById('btn-use-mutation-inhibitor').addEventListener('click', () => {
+    const t = activeTank();
+    if (!t || state.inventory.mutationInhibitor <= 0) return;
+    if (Date.now() < (t.mutationInhibitorUntil || 0)) { addNotification('Already active in this tank!'); return; }
+    state.inventory.mutationInhibitor--;
+    t.mutationInhibitorUntil = Date.now() + MUT_INHIBITOR_MS;
+    addLog(`🧪 Mutation Inhibitor active in ${t.name} for 10 minutes.`, null, t.id);
+    saveState();
+  });
 
   document.getElementById('egs-search').addEventListener('input', (e) => {
     _egsSearch = e.target.value.trim();
@@ -3375,6 +3541,22 @@ function setupEventListeners() {
   });
 
   document.getElementById('egg-storage-list').addEventListener('click', (e) => {
+    // Collapse/expand group — only when clicking directly on header, not its buttons
+    if (!e.target.closest('button') && !e.target.closest('.egs-tank-btns')) {
+      const groupHeader = e.target.closest('[data-toggle-group]');
+      if (groupHeader) {
+        const label = groupHeader.dataset.toggleGroup;
+        _egsCollapsed.has(label) ? _egsCollapsed.delete(label) : _egsCollapsed.add(label);
+        renderEggStorage();
+        return;
+      }
+    }
+    // Sell single stored egg
+    const sellEggBtn = e.target.closest('[data-sell-egg]');
+    if (sellEggBtn) { sellStoredEgg(Number(sellEggBtn.dataset.sellEgg)); return; }
+    // Sell all eggs in a group (respects search filter)
+    const sellAllBtn = e.target.closest('[data-sell-all-group]');
+    if (sellAllBtn) { sellStoredGroup(sellAllBtn.dataset.sellAllGroup); return; }
     // Place all eggs in group into a specific tank
     const placeAllTankBtn = e.target.closest('[data-place-all-tank]');
     if (placeAllTankBtn) {
@@ -3537,6 +3719,20 @@ function setupEventListeners() {
   limitViewToggle.addEventListener('change', (e) => {
     limitViewToCap = e.target.checked;
     localStorage.setItem('limitViewToCap', limitViewToCap ? '1' : '0');
+  });
+
+  const bioGlowToggle = document.getElementById('toggle-bio-glow');
+  bioGlowToggle.checked = bioGlowAnimation;
+  bioGlowToggle.addEventListener('change', (e) => {
+    bioGlowAnimation = e.target.checked;
+    localStorage.setItem('bioGlowAnimation', bioGlowAnimation ? '1' : '0');
+  });
+
+  document.getElementById('inv-panel-title').addEventListener('click', () => {
+    const panel = document.getElementById('inventory-panel');
+    const collapsed = panel.classList.toggle('inv-collapsed');
+    document.getElementById('inv-collapse-btn').textContent = collapsed ? '▴' : '▾';
+    localStorage.setItem('inventoryCollapsed', collapsed ? '1' : '0');
   });
 
   document.getElementById('btn-debug').addEventListener('click', () => {
@@ -3729,10 +3925,10 @@ let _tankSelectorSig = '';
 function renderTankSelector() {
   const bar = document.getElementById('tank-selector-bar');
   if (!bar) return;
-  const canAfford = state.currency >= 1000;
   const mgrActive = document.getElementById('tank-manager-view')?.classList.contains('active') ? 1 : 0;
+  const canAfford = state.currency >= 1000;
   const sig = state.tanks.map(t => t.id + ':' + t.name).join('|')
-    + `|active:${state.activeTankId}|buy:${canAfford ? 1 : 0}|mgr:${mgrActive}`;
+    + `|active:${state.activeTankId}|mgr:${mgrActive}|buy:${canAfford ? 1 : 0}`;
   if (sig === _tankSelectorSig) return;
   _tankSelectorSig = sig;
   const btns = state.tanks.map(t =>
@@ -3869,6 +4065,10 @@ function initGame() {
   if (localStorage.getItem('sidebarCollapsed') === '1') {
     document.body.classList.add('sidebar-mini');
     document.getElementById('sidebar-collapse-btn').textContent = '▶';
+  }
+  if (localStorage.getItem('inventoryCollapsed') === '0') {
+    document.getElementById('inventory-panel').classList.remove('inv-collapsed');
+    document.getElementById('inv-collapse-btn').textContent = '▾';
   }
   if (state.fpsStressPop != null) {
     fpsStressPopulation = state.fpsStressPop;

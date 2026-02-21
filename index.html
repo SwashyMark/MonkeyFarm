@@ -230,6 +230,12 @@
       .tank-ring.oxygen  { --ring-color: #44aaff; }
       .tank-ring.clean   { --ring-color: #44cc77; }
       .tank-ring.danger  { --ring-color: #ff4444; animation: gauge-pulse 0.8s ease-in-out infinite; }
+      .tank-cond-row:not(.active) { padding: 2px 0; }
+      .tank-cond-row:not(.active) .tank-cond-name { font-size: 9px; }
+      .tank-cond-row:not(.active) .tank-cond-rings { gap: 3px; }
+      .tank-cond-row:not(.active) .tank-ring { width: 20px; height: 20px; }
+      .tank-cond-row:not(.active) .tank-ring::before { inset: 3px; }
+      .tank-cond-row:not(.active) .tank-ring span { font-size: 8px; }
 
       /* Buttons */
       .btn {
@@ -258,6 +264,11 @@
       .inv-desc { font-size: 9px; color: #3a6a8a; }
       .inv-count { font-size: 13px; font-weight: bold; color: #7fd8ff; min-width: 16px; text-align: center; }
       .inv-use-btn { width: auto; padding: 3px 8px; font-size: 10px; margin: 0; }
+      #inventory-panel .panel-title { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+      #inv-collapse-btn { font-size: 9px; color: #5599bb; background: none; border: none; padding: 0; cursor: pointer; line-height: 1; }
+      #inventory-panel.inv-collapsed .inv-desc { display: none; }
+      #inventory-panel.inv-collapsed .inv-item { padding: 2px 0; }
+      #inventory-panel.inv-collapsed .inv-icon { font-size: 14px; }
 
       .debug-timer {
         display: flex; align-items: baseline; gap: 6px;
@@ -310,7 +321,7 @@
       /* Water overlay effect */
       #tank::before {
         content: '';
-        position: absolute; inset: 0;
+        position: absolute; top: 28px; left: 0; right: 0; bottom: 0;
         background: repeating-linear-gradient(
           0deg,
           transparent, transparent 40px,
@@ -358,7 +369,7 @@
       }
 
       /* Monkey container */
-      #monkey-container { position: absolute; inset: 0; z-index: 2; }
+      #monkey-container { position: absolute; top: 28px; left: 0; right: 0; bottom: 0; z-index: 2; }
 
       /* Individual monkey */
       .monkey {
@@ -390,7 +401,7 @@
 
       /* Tank overlay (setup) */
       #tank-overlay {
-        position: absolute; inset: 0; z-index: 20;
+        position: absolute; top: 28px; left: 0; right: 0; bottom: 0; z-index: 20;
         background: rgba(4, 16, 32, 0.85);
         display: flex; flex-direction: column;
         align-items: center; justify-content: center; gap: 12px;
@@ -445,6 +456,7 @@
         0%   { bottom: 0; opacity: 0.7; }
         100% { bottom: 100%; opacity: 0; }
       }
+      .bio-glow { filter: hue-rotate(150deg) saturate(3) drop-shadow(0 0 6px rgba(100,255,200,0.85)); }
       @keyframes log-flash {
         0%   { background: rgba(255,220,0,0.3); }
         100% { background: transparent; }
@@ -705,12 +717,19 @@
         display: flex; align-items: center; gap: 6px;
       }
       .egs-group-label { flex: 1; }
+      .egs-group-actions { display: flex; align-items: center; gap: 4px; }
       .egs-place-all-btn {
         font-size: 9px; color: #88bbcc; background: #071424;
         border: 1px solid #1a3a5c; border-radius: 4px; padding: 2px 7px;
         cursor: pointer; text-transform: none; letter-spacing: 0; white-space: nowrap;
       }
       .egs-place-all-btn:hover { border-color: #2a7ab8; color: #7fd8ff; }
+      .egs-sell-all-btn {
+        font-size: 9px; color: #ffcc44; background: #1a1000;
+        border: 1px solid #5a4000; border-radius: 4px; padding: 2px 7px;
+        cursor: pointer; text-transform: none; letter-spacing: 0; white-space: nowrap;
+      }
+      .egs-sell-all-btn:hover { border-color: #aa8800; color: #ffe066; }
       .egs-colour-group { display: flex; flex-direction: column; gap: 3px; }
       .egs-egg-card {
         background: #071424; border: 1px solid #1a3a5c; border-radius: 6px;
@@ -721,10 +740,17 @@
       .egs-egg-info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .egs-egg-name { font-size: 10px; color: #cce4ff; }
       .egs-egg-traits { font-size: 9px; color: #5599bb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .egs-card-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+      .egs-sell-btn {
+        font-size: 9px; color: #ffcc44; background: #1a1000;
+        border: 1px solid #5a4000; border-radius: 4px; padding: 3px 8px;
+        cursor: pointer; white-space: nowrap;
+      }
+      .egs-sell-btn:hover { border-color: #aa8800; color: #ffe066; }
       .egs-place-btn {
         font-size: 9px; color: #44cc88; background: #041a10;
         border: 1px solid #1a5a3c; border-radius: 4px; padding: 3px 8px;
-        cursor: pointer; white-space: nowrap; flex-shrink: 0;
+        cursor: pointer; white-space: nowrap;
       }
       .egs-place-btn:hover { color: #66ffaa; border-color: #2a8a5c; }
       .egs-tank-btns { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -789,6 +815,7 @@
       .shop-buy-btn    { font-size: 10px; padding: 3px 10px; white-space: nowrap; }
       .shop-active-badge { font-size: 8px; color: #44ff88; font-weight: bold; }
       .shop-owned-badge  { font-size: 8px; color: #44cc88; font-weight: bold; }
+      .shop-stock-badge  { font-size: 8px; color: #5599bb; font-weight: bold; }
       .shop-time-left    { color: #44cc88; font-style: normal; }
       .shop-grace-banner {
         background: rgba(0,60,30,0.6); border: 1px solid #1a7a4a;
@@ -1189,6 +1216,13 @@
             </label>
           </div>
           <div class="settings-row">
+            <span style="color:#5599bb;">Bio Glow</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-bio-glow">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
             <span>Active Timers</span>
             <label class="toggle-switch">
               <input type="checkbox" id="toggle-timers">
@@ -1200,6 +1234,20 @@
           <button class="btn" id="btn-save">💾 Save Progress</button>
           <button class="btn" id="btn-reload">🔄 Reload Game</button>
           <button class="btn warning" id="btn-reset">🗑️ Reset Tank</button>
+        </div>
+        <div class="settings-section">
+          <div class="settings-row">
+            <span style="color:#5599bb;">Account Age</span>
+            <span id="stat-tank-age" style="font-size:11px; color:#7fd8ff; font-variant-numeric:tabular-nums;">—</span>
+          </div>
+          <div class="settings-row">
+            <span style="color:#5599bb;">Play Time</span>
+            <span id="stat-play-time" style="font-size:11px; color:#7fd8ff; font-variant-numeric:tabular-nums;">—</span>
+          </div>
+          <div class="settings-row">
+            <span style="color:#5599bb;">Offline Time</span>
+            <span id="stat-offline-time" style="font-size:11px; color:#7fd8ff; font-variant-numeric:tabular-nums;">—</span>
+          </div>
         </div>
         <div class="settings-section">
           <div class="settings-row">
@@ -1244,7 +1292,7 @@
     <div id="egg-storage-modal">
       <div id="egg-storage-popup">
         <div id="egg-storage-title">📦 Egg Storage</div>
-        <input id="egs-search" type="text" placeholder="Search name, colour, genes…" autocomplete="off">
+        <input id="egs-search" type="text" placeholder="Search name, colour, genes, gender…" autocomplete="off">
         <div id="egg-storage-list"></div>
         <div id="egg-storage-footer">
           <button class="btn" id="egg-storage-close">Close</button>
@@ -1285,11 +1333,6 @@
             <div id="tank-xp-label">0 / 100 XP</div>
           </div>
         </div>
-        <div style="margin-top:8px;">
-          <div class="stat-row"><span class="stat-label">Account Age</span><span class="stat-value" id="stat-tank-age">—</span></div>
-          <div class="stat-row"><span class="stat-label">Play Time</span><span class="stat-value" id="stat-play-time">—</span></div>
-          <div class="stat-row"><span class="stat-label">Offline Time</span><span class="stat-value" id="stat-offline-time">—</span></div>
-        </div>
       </div>
 
       <!-- Tank conditions -->
@@ -1301,14 +1344,16 @@
       <!-- Actions -->
       <div class="panel" id="actions-panel">
         <div class="panel-title">Actions</div>
-        <button class="btn" id="btn-feed" disabled>🍔 Feed (+50)</button>
-        <button class="btn" id="btn-aerate" disabled>💨 Aerate (+50)</button>
-        <button class="btn" id="btn-clean" disabled>🧹 Clean (+40)</button>
+        <div style="display:flex; gap:4px;">
+          <button class="btn" id="btn-aerate" disabled style="flex:1; font-size:10px; padding:4px 2px;">💨 Aerate</button>
+          <button class="btn" id="btn-clean" disabled style="flex:1; font-size:10px; padding:4px 2px;">🧹 Clean</button>
+          <button class="btn" id="btn-feed" disabled style="flex:1; font-size:10px; padding:4px 2px;">🍔 Feed</button>
+        </div>
       </div>
 
       <!-- Inventory -->
-      <div class="panel" id="inventory-panel">
-        <div class="panel-title">Inventory</div>
+      <div class="panel inv-collapsed" id="inventory-panel">
+        <div class="panel-title" id="inv-panel-title">Inventory <button id="inv-collapse-btn">▴</button></div>
         <div class="inv-item" style="border-bottom: 1px solid #1a3a5c; margin-bottom: 4px; padding-bottom: 6px;">
           <span class="inv-icon">💷</span>
           <div class="inv-info">
@@ -1354,6 +1399,15 @@
           <button class="btn inv-use-btn" id="btn-toggle-magnifying-glass" disabled>🔍 Phenotype</button>
         </div>
         <div class="inv-item">
+          <span class="inv-icon">🧪</span>
+          <div class="inv-info">
+            <span class="inv-name">Mutation Inhibitor <span id="mutation-inhibitor-badge" style="display:none; color:#44aaff; font-size:9px; font-weight:bold;"></span></span>
+            <span class="inv-desc">Stops mutations in active tank for 10 min</span>
+          </div>
+          <span class="inv-count" id="inv-mutation-inhibitor-cnt">0</span>
+          <button class="btn inv-use-btn" id="btn-use-mutation-inhibitor" disabled>Use</button>
+        </div>
+        <div class="inv-item" style="border-top: 1px solid #1a3a5c; margin-top: 4px; padding-top: 6px;">
           <span class="inv-icon">📦</span>
           <div class="inv-info">
             <span class="inv-name">Egg Storage</span>
@@ -1362,7 +1416,7 @@
           <span class="inv-count" id="inv-egg-storage-cnt">0</span>
           <button class="btn inv-use-btn" id="btn-view-egg-storage" disabled>View</button>
         </div>
-        <div class="inv-item" style="border-top: 1px solid #1a3a5c; margin-top: 4px; padding-top: 6px;">
+        <div class="inv-item">
           <span class="inv-icon">🛒</span>
           <div class="inv-info">
             <span class="inv-name">Shop</span>
@@ -1455,7 +1509,7 @@
       <div id="population-view">
         <div id="population-view-title">📋 Population</div>
         <div id="pop-controls">
-          <input id="pop-search" type="text" placeholder="Search name, colour, genes…" autocomplete="off">
+          <input id="pop-search" type="text" placeholder="Search name, colour, genes, gender…" autocomplete="off">
           <div id="pop-stage-filters">
             <label class="pop-filter-label"><input type="checkbox" id="pop-filter-egg"      checked> 🥚 Eggs</label>
             <label class="pop-filter-label"><input type="checkbox" id="pop-filter-baby"     checked> 🐠 Babies</label>
