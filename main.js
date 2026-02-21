@@ -151,6 +151,7 @@ function createWindow () {
   const mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(APP_DIR, 'preload.js'),
       backgroundThrottling: false

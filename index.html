@@ -747,6 +747,56 @@
         border-bottom: 1px solid #1a3a5c; padding-bottom: 4px; margin-bottom: 4px;
       }
 
+      /* ── SHOP MODAL ── */
+      #shop-modal {
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,5,15,0.78);
+        display: none; align-items: center; justify-content: center;
+      }
+      #shop-modal.open { display: flex; }
+      #shop-popup {
+        background: #0d2137; border: 1px solid #1a5f8a;
+        border-radius: 10px; padding: 20px 24px;
+        box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+        display: flex; flex-direction: column; gap: 10px;
+        width: 460px; max-width: 94vw; max-height: 82vh;
+      }
+      #shop-title {
+        font-size: 14px; font-weight: bold; color: #7fd8ff;
+        text-align: center; flex-shrink: 0;
+        border-bottom: 1px solid #1a3a5c; padding-bottom: 8px;
+      }
+      #shop-balance {
+        font-size: 11px; color: #88bbcc; text-align: right; flex-shrink: 0;
+      }
+      #shop-balance-val { color: #7fd8ff; font-weight: bold; }
+      #shop-item-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+      .shop-section-header {
+        font-size: 9px; color: #2a7ab8; text-transform: uppercase;
+        letter-spacing: 0.8px; padding: 8px 0 4px; font-weight: bold;
+      }
+      .shop-section-header:first-child { padding-top: 0; }
+      .shop-item {
+        background: #071424; border: 1px solid #1a3a5c; border-radius: 6px;
+        padding: 8px 10px; display: flex; align-items: center; gap: 10px;
+      }
+      .shop-item-owned { opacity: 0.55; }
+      .shop-item-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .shop-item-label { font-size: 11px; color: #cce4ff; font-weight: bold; }
+      .shop-item-desc  { font-size: 9px; color: #5599bb; line-height: 1.4; }
+      .shop-item-action { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+      .shop-item-cost  { font-size: 10px; color: #ffe066; white-space: nowrap; }
+      .shop-buy-btn    { font-size: 10px; padding: 3px 10px; white-space: nowrap; }
+      .shop-active-badge { font-size: 8px; color: #44ff88; font-weight: bold; }
+      .shop-owned-badge  { font-size: 8px; color: #44cc88; font-weight: bold; }
+      .shop-time-left    { color: #44cc88; font-style: normal; }
+      .shop-grace-banner {
+        background: rgba(0,60,30,0.6); border: 1px solid #1a7a4a;
+        border-radius: 6px; padding: 6px 10px;
+        font-size: 10px; color: #44ff88; text-align: center; flex-shrink: 0;
+      }
+      #shop-footer { display: flex; justify-content: flex-end; flex-shrink: 0; }
+
       /* ── MOVE MONKEY MODAL ── */
       #move-monkey-modal {
         position: fixed; inset: 0; z-index: 200;
@@ -898,6 +948,22 @@
         height: 100%; background: linear-gradient(90deg, #0055cc, #44aaff);
         border-radius: 2px; transition: width 0.4s;
       }
+
+      .tm-upgrades-grid {
+        display: grid; grid-template-columns: auto auto; align-items: center; gap: 4px 8px; width: fit-content;
+      }
+      .tm-cap-desc { font-size: 9px; color: #5599bb; }
+      .tm-cap-badge { font-size: 9px; color: #44cc88; font-style: italic; }
+      .tm-cap-btn {
+        font-size: 10px; color: #aaddff; background: rgba(0,30,60,0.7);
+        border: 1px solid #1a5080; border-radius: 4px; padding: 3px 10px; cursor: pointer;
+        white-space: nowrap; flex-shrink: 0;
+      }
+      .tm-cap-btn:hover:not(:disabled) { background: rgba(0,50,90,0.9); border-color: #3388bb; }
+      .tm-cap-btn:disabled { opacity: 0.4; cursor: default; }
+      .tm-toggle-btn { color: #778899; border-color: #334455; }
+      .tm-toggle-btn.active { color: #44ee88; border-color: #22aa55; background: rgba(0,60,30,0.7); }
+      .tm-toggle-btn.active:hover { background: rgba(0,80,40,0.9); }
 
       #life-support-content {
         display: flex; flex-wrap: wrap; gap: 16px;
@@ -1165,6 +1231,16 @@
     <!-- MOVE MONKEY MODAL -->
     <div id="egs-gene-tooltip"><div id="egs-gene-tooltip-title"></div><div id="egs-gene-tooltip-body"></div></div>
 
+    <!-- Shop modal -->
+    <div id="shop-modal">
+      <div id="shop-popup">
+        <div id="shop-title">🛒 Shop</div>
+        <div id="shop-balance">Balance: <span id="shop-balance-val">£0</span></div>
+        <div id="shop-item-list"></div>
+        <div id="shop-footer"><button class="btn" id="shop-close">Close</button></div>
+      </div>
+    </div>
+
     <div id="egg-storage-modal">
       <div id="egg-storage-popup">
         <div id="egg-storage-title">📦 Egg Storage</div>
@@ -1285,6 +1361,14 @@
           </div>
           <span class="inv-count" id="inv-egg-storage-cnt">0</span>
           <button class="btn inv-use-btn" id="btn-view-egg-storage" disabled>View</button>
+        </div>
+        <div class="inv-item" style="border-top: 1px solid #1a3a5c; margin-top: 4px; padding-top: 6px;">
+          <span class="inv-icon">🛒</span>
+          <div class="inv-info">
+            <span class="inv-name">Shop</span>
+            <span class="inv-desc">Items, boosts &amp; upgrades</span>
+          </div>
+          <button class="btn inv-use-btn" id="btn-open-shop">Open</button>
         </div>
       </div>
 

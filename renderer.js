@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────
 // 1. CONSTANTS
 // ─────────────────────────────────────────────
-const PURIFY_DURATION   = 120_000;  // 2 min
+const PURIFY_DURATION   = 20_000;  // 2 min
 const PREGNANCY  = [240_000, 420_000]; // 4–7 min
 const MATING_COOLDOWN   = 180_000;  // 3 min
 
@@ -15,7 +15,9 @@ function randRange(min, max) { return min + Math.random() * (max - min); }
 
 // Per-monkey per-second depletion (scales with alive count)
 const FOOD_DRAIN_PER   = 0.004;  // per alive non-egg monkey
-const MAX_TANK_POPULATION = 500;  // hard cap on alive monkeys per tank
+const POP_LEVELS        = [100, 150, 200, 250, 300, 350, 400, 450, 500];  // alive monkey cap per upgrade level
+const POP_UPGRADE_COSTS = [750, 1000, 1400, 1900, 2500, 3200, 4000, 5000]; // cost to reach levels 1–8
+function getMaxPop(tank) { return POP_LEVELS[tank?.popLevel ?? 0]; }
 
 const OXYGEN_DRAIN_PER = 0.002;
 const CLEAN_DRAIN_PER  = 0.001;
@@ -457,6 +459,9 @@ const DEFAULT_TANK = {
   feeder:    { level: 0, startedAt: null, duration: null },
   tankCreatedAt: null,
   glowingFlakesActive: false,
+  popLevel: 0,
+  eggSkimmer: false,
+  eggSkimmerActive: false,
 };
 
 const DEFAULT_STATE = {
@@ -514,6 +519,15 @@ const DEFAULT_STATE = {
     glowingFlakes: 0,
     magnifyingGlass: 0,
   },
+  offlineProtectionExpiry: 0,
+  gracePeriodUntil: 0,
+  shop: {
+    rationBoostExpiry:  0,
+    waterTreatExpiry:   0,
+    autoFeeder:         false,
+
+    mutationCatalyst:   false,
+  },
 };
 
 // ─────────────────────────────────────────────
@@ -521,6 +535,7 @@ const DEFAULT_STATE = {
 // ───────────��─────────────────────────────────
 let state = {};
 let notifications = [];
+let _suppressDeaths = false; // transient: true during offline-protected catchup
 let debugMode = false;
 let debugSpeed = 1;
 let debugLocks = { food: 'normal', oxygen: 'normal', clean: 'normal', aer: 'normal', skim: 'normal', feeder: 'normal' };
@@ -662,6 +677,17 @@ function migrateState(loaded) {
     transparent: ['C_TRANS','C_TRANS'], albino: ['C_TRANS','C_TRANS'], default: ['C_PINK','C_PINK'],
   };
 
+  // Shop migration
+  if (!s.shop) s.shop = {};
+  const defaultShop = { rationBoostExpiry: 0, waterTreatExpiry: 0, autoFeeder: false, mutationCatalyst: false };
+  s.shop = Object.assign({}, defaultShop, s.shop);
+  // Backfill popLevel — old saves had 500 cap = level 8
+  for (const t of s.tanks) {
+    if (t.popLevel == null) t.popLevel = 8;
+  }
+  if (!s.offlineProtectionExpiry) s.offlineProtectionExpiry = 0;
+  if (!s.gracePeriodUntil) s.gracePeriodUntil = 0;
+
   s.monkeys = (loaded.monkeys || []).map(m => {
     if (m.dna && m.dna.body_color) return m;  // already v3
 
@@ -740,6 +766,195 @@ function sellMonkey(id) {
   _popSignature = '';
   addLog(`💰 ${m.name} sold for £${price}.`, null, m.tankId);
   saveState();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── SHOP ─────────────────────────────────────────────────────────────────────
+const SHOP_ITEMS = {
+  // Time-limited
+  offlineProtection: { label: '🛡 Offline Protection', desc: 'Prevent deaths while offline. Stackable in 6h blocks (max 24h).', cost: 75,  type: 'timed'     },
+  rationBoost:       { label: '🍖 Ration Boost',       desc: 'Halves food drain for 2 hours.',                                  cost: 50,  type: 'timed'     },
+  waterTreatment:    { label: '💧 Water Treatment',    desc: 'Halves pollution gain for 2 hours.',                              cost: 60,  type: 'timed'     },
+  // Permanent
+  autoFeeder:        { label: '🤖 Auto-Feeder',        desc: 'Passively adds food (+5 every 30s per tank).',       cost: 500, type: 'permanent' },
+  mutationCatalyst:  { label: '🧬 Mutation Catalyst',  desc: 'Permanently increases base mutation rate by 1.5×.',  cost: 300, type: 'permanent' },
+};
+
+const OFFLINE_PROT_BLOCK = 6 * 60 * 60 * 1000; // 6 hours per block
+const TIMED_BOOST_MS     = 2 * 60 * 60 * 1000; // 2 hours for boosts
+
+function buyShopItem(key) {
+  const item = SHOP_ITEMS[key];
+  if (!item) return;
+  const now = Date.now();
+
+  // Permanent — check not already owned
+  if (item.type === 'permanent') {
+    if (state.shop[key]) { addNotification('Already purchased!'); return; }
+    if (state.currency < item.cost) { addNotification('Not enough funds!'); return; }
+    state.currency -= item.cost;
+    state.shop[key] = true;
+    addLog(`🛒 Purchased ${item.label}.`);
+    saveState();
+    renderShop();
+    return;
+  }
+
+  // Time-limited
+  if (state.currency < item.cost) { addNotification('Not enough funds!'); return; }
+
+  if (key === 'offlineProtection') {
+    const current = Math.max(now, state.offlineProtectionExpiry || 0);
+    const maxExpiry = now + 24 * 60 * 60 * 1000;
+    if (current >= maxExpiry) { addNotification('Max protection reached (24h)!'); return; }
+    state.currency -= item.cost;
+    state.offlineProtectionExpiry = Math.min(current + OFFLINE_PROT_BLOCK, maxExpiry);
+    addLog(`🛡 Offline protection extended to ${fmtProtRemaining()}.`);
+  } else if (key === 'rationBoost') {
+    state.currency -= item.cost;
+    state.shop.rationBoostExpiry = Math.max(now, state.shop.rationBoostExpiry || 0) + TIMED_BOOST_MS;
+    addLog(`🍖 Ration Boost active for 2h.`);
+  } else if (key === 'waterTreatment') {
+    state.currency -= item.cost;
+    state.shop.waterTreatExpiry = Math.max(now, state.shop.waterTreatExpiry || 0) + TIMED_BOOST_MS;
+    addLog(`💧 Water Treatment active for 2h.`);
+  }
+
+  saveState();
+  renderShop();
+}
+
+function buyPopUpgrade(tankId) {
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank) return;
+  const level = tank.popLevel ?? 0;
+  if (level >= POP_LEVELS.length - 1) { addNotification('Already at max capacity!'); return; }
+  const cost = POP_UPGRADE_COSTS[level];
+  if (state.currency < cost) { addNotification('Not enough funds!'); return; }
+  state.currency -= cost;
+  tank.popLevel = level + 1;
+  _tmSig = '';
+  addLog(`📊 ${tank.name} capacity upgraded to ${POP_LEVELS[tank.popLevel]}.`);
+  saveState();
+}
+
+function buyEggSkimmer(tankId) {
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank) return;
+  if (tank.eggSkimmer) { addNotification('Already installed!'); return; }
+  const cost = 2000;
+  if (state.currency < cost) { addNotification('Not enough funds!'); return; }
+  state.currency -= cost;
+  tank.eggSkimmer = true;
+  tank.eggSkimmerActive = true;
+  _tmSig = '';
+  addLog(`🫧 ${tank.name} egg skimmer installed — auto-storing eggs.`, null, tank.id);
+  saveState();
+}
+
+function toggleEggSkimmer(tankId) {
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank || !tank.eggSkimmer) return;
+  tank.eggSkimmerActive = !tank.eggSkimmerActive;
+  _tmSig = '';
+  addLog(`🫧 ${tank.name} egg skimmer ${tank.eggSkimmerActive ? 'enabled' : 'disabled'}.`, null, tank.id);
+  saveState();
+}
+
+function fmtProtRemaining() {
+  const rem = Math.max(0, (state.offlineProtectionExpiry || 0) - Date.now());
+  if (!rem) return 'None';
+  const h = Math.floor(rem / 3600000);
+  const m = Math.floor((rem % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function fmtBoostRemaining(expiry) {
+  const rem = Math.max(0, (expiry || 0) - Date.now());
+  if (!rem) return null;
+  const h = Math.floor(rem / 3600000);
+  const m = Math.floor((rem % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+let _shopSig = '';
+function renderShop() {
+  const list = document.getElementById('shop-item-list');
+  if (!list) return;
+  const now = Date.now();
+  const grace = now < (state.gracePeriodUntil || 0);
+  const graceRem = grace ? Math.ceil((state.gracePeriodUntil - now) / 1000) : 0;
+
+  const protRem  = fmtBoostRemaining(state.offlineProtectionExpiry);
+  const rationRem = fmtBoostRemaining(state.shop.rationBoostExpiry);
+  const waterRem  = fmtBoostRemaining(state.shop.waterTreatExpiry);
+  const maxProt   = (state.offlineProtectionExpiry || 0) >= now + 24 * 60 * 60 * 1000 - 1000;
+
+  const sig = [state.currency, protRem, rationRem, waterRem,
+    state.shop.autoFeeder, state.shop.mutationCatalyst,
+    graceRem > 0 ? Math.floor(graceRem / 5) : 0].join('|');
+  if (sig === _shopSig) return;
+  _shopSig = sig;
+
+  const balEl = document.getElementById('shop-balance-val');
+  if (balEl) balEl.textContent = `£${(state.currency || 0).toLocaleString()}`;
+
+  const canAfford = key => state.currency >= SHOP_ITEMS[key].cost;
+
+  function timedRow(key, remainStr, extra = '') {
+    const item = SHOP_ITEMS[key];
+    const active = !!remainStr;
+    return `<div class="shop-item">
+      <div class="shop-item-info">
+        <span class="shop-item-label">${item.label}${active ? ` <span class="shop-active-badge">● ACTIVE</span>` : ''}</span>
+        <span class="shop-item-desc">${item.desc}${active ? `<br><span class="shop-time-left">⏱ ${remainStr} remaining</span>` : ''}${extra}</span>
+      </div>
+      <div class="shop-item-action">
+        <span class="shop-item-cost">£${item.cost}</span>
+        <button class="btn shop-buy-btn" data-shop-buy="${key}" ${canAfford(key) ? '' : 'disabled'}>Buy</button>
+      </div>
+    </div>`;
+  }
+
+  function permRow(key) {
+    const item = SHOP_ITEMS[key];
+    const owned = !!state.shop[key];
+    return `<div class="shop-item${owned ? ' shop-item-owned' : ''}">
+      <div class="shop-item-info">
+        <span class="shop-item-label">${item.label}${owned ? ' <span class="shop-owned-badge">✓ Owned</span>' : ''}</span>
+        <span class="shop-item-desc">${item.desc}</span>
+      </div>
+      <div class="shop-item-action">
+        <span class="shop-item-cost">${owned ? '' : '£' + item.cost}</span>
+        <button class="btn shop-buy-btn" data-shop-buy="${key}" ${owned || !canAfford(key) ? 'disabled' : ''}>
+          ${owned ? 'Purchased' : 'Buy'}
+        </button>
+      </div>
+    </div>`;
+  }
+
+  const protExtra = maxProt ? '<br><span class="shop-time-left">⚠ Maximum 24h reached.</span>' : '';
+  const offlineBuyBtn = `<div class="shop-item">
+    <div class="shop-item-info">
+      <span class="shop-item-label">${SHOP_ITEMS.offlineProtection.label}${protRem ? ` <span class="shop-active-badge">● ACTIVE</span>` : ''}</span>
+      <span class="shop-item-desc">${SHOP_ITEMS.offlineProtection.desc}${protRem ? `<br><span class="shop-time-left">⏱ ${protRem} remaining</span>` : ''}${protExtra}</span>
+    </div>
+    <div class="shop-item-action">
+      <span class="shop-item-cost">£${SHOP_ITEMS.offlineProtection.cost}<small> /6h</small></span>
+      <button class="btn shop-buy-btn" data-shop-buy="offlineProtection" ${maxProt || !canAfford('offlineProtection') ? 'disabled' : ''}>+6h</button>
+    </div>
+  </div>`;
+
+  list.innerHTML = `
+    ${grace ? `<div class="shop-grace-banner">🛡 Grace period active — deaths paused for ${graceRem}s</div>` : ''}
+    <div class="shop-section-header">⏱ Time-Limited</div>
+    ${offlineBuyBtn}
+    ${timedRow('rationBoost', rationRem)}
+    ${timedRow('waterTreatment', waterRem)}
+    <div class="shop-section-header">⭐ Permanent Upgrades</div>
+    ${permRow('autoFeeder')}
+    ${permRow('mutationCatalyst')}
+  `;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -851,7 +1066,8 @@ function getMasteryBonuses() {
 // 8. GENETICS
 // ─────────────────────────────────────────────
 function inheritGenes(parentA, parentB, glowingFlakesActive = false) {
-  const mutMult = glowingFlakesActive ? 10 : 1;
+  const catalystMult = state.shop?.mutationCatalyst ? 1.5 : 1;
+  const mutMult = (glowingFlakesActive ? 10 : 1) * catalystMult;
 
   function inheritLocus(pA, pB, geneId) {
     const gene = GENE_DATA.find(g => g.id === geneId);
@@ -1000,9 +1216,20 @@ function gameTick(dtMs) {
     const skimRegen   = SKIMMER_LEVELS[skim.level]?.passiveRegen    || 0;
     const feederRegen = FEEDER_LEVELS[feeder.level]?.passiveRegen   || 0;
     const corpseRate  = mb.ironReduceCorpse ? DEAD_DRAIN_PER * 0.5 : DEAD_DRAIN_PER;
-    tank.food        = Math.max(0, Math.min(getMaxFood(tank),        tank.food        - foodDrain * dtSec * mb.foodMult * mb.voidHungerMult + feederRegen * dtSec));
+    const now2 = Date.now();
+    const rationBoostActive = now2 < (state.shop?.rationBoostExpiry || 0);
+    const waterTreatActive  = now2 < (state.shop?.waterTreatExpiry  || 0);
+    const foodDrainMult  = rationBoostActive ? 0.5 : 1.0;
+    const cleanDrainMult = waterTreatActive  ? 0.5 : 1.0;
+    // Auto-feeder: passive +5 food/30s per tank
+    let autoFeedBonus = 0;
+    if (state.shop?.autoFeeder) {
+      state._autoFeedAccum = (state._autoFeedAccum || 0) + dtSec;
+      if (state._autoFeedAccum >= 30) { state._autoFeedAccum -= 30; autoFeedBonus = 5; }
+    }
+    tank.food        = Math.max(0, Math.min(getMaxFood(tank),        tank.food        - foodDrain * dtSec * mb.foodMult * mb.voidHungerMult * foodDrainMult + feederRegen * dtSec + autoFeedBonus));
     tank.oxygen      = Math.max(0, Math.min(getMaxOxygen(tank),      tank.oxygen      - OXYGEN_DRAIN_PER * aliveNonEgg.length * dtSec * mb.oxygenMult + (oxygenGain + aerRegen + BASE_OXYGEN_REGEN) * dtSec));
-    tank.cleanliness = Math.max(0, Math.min(getMaxCleanliness(tank), tank.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadTank.length) * dtSec * mb.cleanMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
+    tank.cleanliness = Math.max(0, Math.min(getMaxCleanliness(tank), tank.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadTank.length) * dtSec * mb.cleanMult * cleanDrainMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
 
     if (debugMode) {
       if (debugLocks.food   !== 'normal') tank.food        = debugLocks.food   === '0' ? 0 : 100;
@@ -1061,10 +1288,11 @@ function gameTick(dtMs) {
 }
 
 function updateMonkeyHealth(m, dtSec, t) {
+  if (m.stage === 'egg') return; // eggs don't need food/oxygen
+  if (_suppressDeaths || Date.now() < (state.gracePeriodUntil || 0)) return;
+
   let dmg = 0;
   let regen = 0;
-
-  if (m.stage === 'egg') return; // eggs don't need food/oxygen
 
   if (t.oxygen <= 0) dmg += DMG_NO_OXYGEN * dtSec;
   if (t.food   <= 0) dmg += DMG_NO_FOOD   * dtSec;
@@ -1117,13 +1345,15 @@ function updateMonkeyStage(m, tank) {
     addXP(20);
     addLog(`🦐 ${m.name} is now an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, `🦐 became an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, m.tankId);
   } else if (m.stage === 'adult' && effectiveElapsed >= dur) {
-    killMonkey(m, 'old age');
+    if (!_suppressDeaths && Date.now() >= (state.gracePeriodUntil || 0)) {
+      killMonkey(m, 'old age');
+    }
   }
 }
 
 function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   if (female.pregnant) return;
-  if (aliveMonkeys.length >= MAX_TANK_POPULATION) return;
+  if (aliveMonkeys.length >= getMaxPop(tank)) return;
   const now = Date.now();
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
@@ -1167,9 +1397,10 @@ function processBirths(aliveMonkeys, tank) {
     const mb = getMasteryBonuses();
     const count = 1 + Math.floor(Math.random() * 3) + mb.extraEgg + mb.twinExtraEgg + mb.fanMult;
     for (let i = 0; i < count; i++) {
-      if (aliveMonkeys.length >= MAX_TANK_POPULATION) break;
+      if (aliveMonkeys.length >= getMaxPop(tank)) break;
       const dna = inheritGenes(m, father || m, usedFlakes);
       const baby = createMonkey({ generation: gen, dna, tankId: tank.id });
+      if (tank.eggSkimmerActive) baby.inStorage = true;
       // Build log tag: phenotype + expressed functional traits
       const phenotype = resolveColorPhenotype(dna.body_color);
       const def = PHENOTYPE_DEFS[phenotype];
@@ -1379,19 +1610,47 @@ function checkMilestones() {
 
 function applyOfflineProgress() {
   if (!state.lastTick) return;
-  let offlineMs = Date.now() - state.lastTick;
+  const now = Date.now();
+  const originalLastTick = state.lastTick;
+  let offlineMs = now - originalLastTick;
   if (offlineMs <= 1000) return;
   offlineMs = Math.min(offlineMs, OFFLINE_CAP_MS);
   state.totalOfflineMs = (state.totalOfflineMs || 0) + offlineMs;
 
-  addLog(`⏰ Applied ${Math.round(offlineMs / 60000)} min of offline progress`);
+  // Split into death-protected and unprotected periods
+  const protExpiry    = state.offlineProtectionExpiry || 0;
+  const protectedMs   = Math.min(offlineMs, Math.max(0, protExpiry - originalLastTick));
+  const unprotectedMs = offlineMs - protectedMs;
+  const hasProtection = protectedMs > 0;
 
-  let remaining = offlineMs;
-  while (remaining > 0) {
-    const chunk = Math.min(remaining, OFFLINE_CHUNK_MS);
-    state.lastTick = Date.now() - remaining + chunk;
+  const totalMin = Math.round(offlineMs / 60000);
+  const protMin  = Math.round(protectedMs / 60000);
+  addLog(`⏰ Applied ${totalMin} min of offline progress${hasProtection ? ` (${protMin} min death-protected)` : ''}`);
+
+  // Simulate protected period first (deaths suppressed)
+  _suppressDeaths = true;
+  let rem = protectedMs;
+  while (rem > 0) {
+    const chunk = Math.min(rem, OFFLINE_CHUNK_MS);
+    state.lastTick = now - offlineMs + (protectedMs - rem) + chunk;
     gameTick(chunk);
-    remaining -= chunk;
+    rem -= chunk;
+  }
+  _suppressDeaths = false;
+
+  // Simulate unprotected period
+  rem = unprotectedMs;
+  while (rem > 0) {
+    const chunk = Math.min(rem, OFFLINE_CHUNK_MS);
+    state.lastTick = now - unprotectedMs + (unprotectedMs - rem) + chunk;
+    gameTick(chunk);
+    rem -= chunk;
+  }
+
+  // Grant 5-min grace period on return if any protection was active
+  if (hasProtection) {
+    state.gracePeriodUntil = now + 5 * 60 * 1000;
+    addLog(`🛡 5-min grace period — deaths paused while you settle in.`);
   }
 }
 
@@ -1994,6 +2253,7 @@ function renderAll() {
   renderMolts();
   renderLifeSupport();
   renderInventory();
+  renderShop();
   renderDebugPanel();
   renderMonkeydex();
   renderPopulation();
@@ -2120,7 +2380,7 @@ function renderGauges() {
     if (row) row.classList.toggle('active', t.id === state.activeTankId);
 
     const tankAlive = state.monkeys.filter(m => m.alive && m.tankId === t.id && !m.inStorage).length;
-    const atCapacity = tankAlive >= MAX_TANK_POPULATION;
+    const atCapacity = tankAlive >= getMaxPop(t);
     const warnEl = document.getElementById(`cap-warn-${t.id}`);
     if (warnEl) warnEl.style.display = atCapacity ? '' : 'none';
 
@@ -2164,7 +2424,7 @@ function renderGauges() {
 }
 
 function renderPopulationCounts() {
-  const alive = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId);
+  const alive = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId && !m.inStorage);
   document.getElementById('cnt-eggs').textContent      = alive.filter(m => m.stage === 'egg').length;
   document.getElementById('cnt-babies').textContent    = alive.filter(m => m.stage === 'baby').length;
   document.getElementById('cnt-juveniles').textContent = alive.filter(m => m.stage === 'juvenile').length;
@@ -2375,10 +2635,13 @@ function renderTankManager() {
     const alive = state.monkeys.filter(m => m.alive && m.tankId === t.id && !m.inStorage);
     const dead  = state.monkeys.filter(m => !m.alive && m.tankId === t.id).length;
     const stageCounts = ['egg','baby','juvenile','adult'].map(s => alive.filter(m => m.stage === s).length).join(',');
-    return `${t.id}:${t.name}:${t.aeration.level}:${t.skimmer.level}:${t.feeder.level}:${stageCounts}:${dead}:${t.id === state.activeTankId ? 1 : 0}`;
+    return `${t.id}:${t.name}:${t.aeration.level}:${t.skimmer.level}:${t.feeder.level}:${stageCounts}:${dead}:${t.id === state.activeTankId ? 1 : 0}:${t.popLevel ?? 0}:${t.eggSkimmer ? 1 : 0}:${t.eggSkimmerActive ? 1 : 0}:${state.currency}`;
   }).join('|');
 
   const list = document.getElementById('tank-manager-list');
+
+  // Don't rebuild while a tank name input is focused — it would destroy the input mid-edit
+  if (list.querySelector('.tm-tank-name-input:focus')) return;
 
   if (sig !== _tmSig) {
     _tmSig = sig;
@@ -2490,6 +2753,24 @@ function renderTankManager() {
             </div>
           </div>
         </div>
+
+        <div>
+          <div class="tm-section-label">Upgrades</div>
+          <div class="tm-upgrades-grid">
+            ${(t.popLevel ?? 0) >= POP_LEVELS.length - 1
+              ? `<span class="tm-cap-badge">📊 Max cap: ${POP_LEVELS[POP_LEVELS.length - 1]}</span><span></span>`
+              : `<span class="tm-cap-desc">📊 Cap: ${POP_LEVELS[t.popLevel ?? 0]} → ${POP_LEVELS[(t.popLevel ?? 0) + 1]}</span>
+                 <button class="tm-cap-btn" data-pop-upgrade="${t.id}" ${state.currency < POP_UPGRADE_COSTS[t.popLevel ?? 0] ? 'disabled' : ''}>£${POP_UPGRADE_COSTS[t.popLevel ?? 0].toLocaleString()}</button>`
+            }
+            ${t.eggSkimmer
+              ? `<span class="tm-cap-desc">🫧 Egg Skimmer</span>
+                 <button class="tm-cap-btn tm-toggle-btn${t.eggSkimmerActive ? ' active' : ''}" data-toggle-skimmer="${t.id}">${t.eggSkimmerActive ? 'On' : 'Off'}</button>`
+              : `<span class="tm-cap-desc">🫧 Egg Skimmer — auto-store eggs</span>
+                 <button class="tm-cap-btn" data-buy-skimmer="${t.id}" ${state.currency < 2000 ? 'disabled' : ''}>£2,000</button>`
+            }
+          </div>
+        </div>
+
       </div>`;
     }).join('');
 
@@ -2974,6 +3255,24 @@ function releaseEggs() {
 }
 
 function setupEventListeners() {
+  // Shop
+  document.getElementById('btn-open-shop').addEventListener('click', () => {
+    _shopSig = '';
+    renderShop();
+    document.getElementById('shop-modal').classList.add('open');
+  });
+  document.getElementById('shop-close').addEventListener('click', () => {
+    document.getElementById('shop-modal').classList.remove('open');
+  });
+  document.getElementById('shop-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('shop-modal'))
+      document.getElementById('shop-modal').classList.remove('open');
+  });
+  document.getElementById('shop-item-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-shop-buy]');
+    if (btn) buyShopItem(btn.dataset.shopBuy);
+  });
+
   // Move monkey modal
   document.getElementById('move-monkey-cancel').addEventListener('click', closeMoveMonkeyModal);
   document.getElementById('move-monkey-modal').addEventListener('click', (e) => {
@@ -3322,6 +3621,13 @@ function setupEventListeners() {
 
   // Tank Manager — name editing and Switch button
   document.getElementById('tank-manager-list').addEventListener('click', (e) => {
+    // Population capacity upgrade button
+    const popUpgradeBtn = e.target.closest('[data-pop-upgrade]');
+    if (popUpgradeBtn) { buyPopUpgrade(Number(popUpgradeBtn.dataset.popUpgrade)); return; }
+    const buySkimmerBtn = e.target.closest('[data-buy-skimmer]');
+    if (buySkimmerBtn) { buyEggSkimmer(Number(buySkimmerBtn.dataset.buySkimmer)); return; }
+    const toggleSkimmerBtn = e.target.closest('[data-toggle-skimmer]');
+    if (toggleSkimmerBtn) { toggleEggSkimmer(Number(toggleSkimmerBtn.dataset.toggleSkimmer)); return; }
     // Switch button
     const switchBtn = e.target.closest('[data-tm-switch]');
     if (switchBtn) {
@@ -3341,12 +3647,22 @@ function setupEventListeners() {
     nameEl.replaceWith(input);
     input.focus();
     input.select();
+    let saved = false;
     const save = () => {
+      if (saved) return;
+      saved = true;
       const newName = input.value.trim() || tank.name;
       tank.name = newName;
-      _tmSig = '';  // force rebuild
+      // Swap input back to a span immediately so the DOM is clean
+      const span = document.createElement('span');
+      span.className = 'tm-tank-name';
+      span.dataset.tmName = tankId;
+      span.title = 'Click to rename';
+      span.textContent = newName;
+      input.replaceWith(span);
+      _tmSig = '';
+      _tankSelectorSig = '';
       saveState();
-      renderTankManager();
     };
     input.addEventListener('blur', save);
     input.addEventListener('keydown', ev => {
