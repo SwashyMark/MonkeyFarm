@@ -1662,7 +1662,7 @@ function checkMilestones() {
   }
 }
 
-function applyOfflineProgress() {
+async function applyOfflineProgress(onProgress) {
   if (!state.lastTick) return;
   const now = Date.now();
   const originalLastTick = state.lastTick;
@@ -1681,6 +1681,10 @@ function applyOfflineProgress() {
   const protMin  = Math.round(protectedMs / 60000);
   addLog(`⏰ Applied ${totalMin} min of offline progress${hasProtection ? ` (${protMin} min death-protected)` : ''}`);
 
+  const totalChunks = Math.ceil(offlineMs / OFFLINE_CHUNK_MS) || 1;
+  let chunksProcessed = 0;
+  const YIELD_EVERY = 20; // yield to browser every 20 chunks (~200s sim time)
+
   // Simulate protected period first (deaths suppressed)
   _suppressDeaths = true;
   let rem = protectedMs;
@@ -1689,6 +1693,11 @@ function applyOfflineProgress() {
     state.lastTick = now - offlineMs + (protectedMs - rem) + chunk;
     gameTick(chunk);
     rem -= chunk;
+    chunksProcessed++;
+    if (onProgress && chunksProcessed % YIELD_EVERY === 0) {
+      onProgress(chunksProcessed / totalChunks);
+      await new Promise(r => setTimeout(r, 0));
+    }
   }
   _suppressDeaths = false;
 
@@ -1699,7 +1708,14 @@ function applyOfflineProgress() {
     state.lastTick = now - unprotectedMs + (unprotectedMs - rem) + chunk;
     gameTick(chunk);
     rem -= chunk;
+    chunksProcessed++;
+    if (onProgress && chunksProcessed % YIELD_EVERY === 0) {
+      onProgress(chunksProcessed / totalChunks);
+      await new Promise(r => setTimeout(r, 0));
+    }
   }
+
+  if (onProgress) onProgress(1);
 
   // Grant 5-min grace period on return if any protection was active
   if (hasProtection) {
@@ -4100,10 +4116,14 @@ async function initGame() {
   setLoadingProgress(50, 'Calculating offline progress…');
   await nextFrame();
 
-  // Step 3: Offline progress
-  applyOfflineProgress();
+  // Step 3: Offline progress (async — yields to browser so it doesn't freeze)
+  await applyOfflineProgress(pct => {
+    const bar = 50 + Math.round(pct * 30); // 50% → 80%
+    const min = Math.round(pct * 100);
+    setLoadingProgress(bar, `Calculating offline progress… ${min}%`);
+  });
   state.lastTick = Date.now();
-  setLoadingProgress(70, 'Setting up the tank…');
+  setLoadingProgress(82, 'Setting up the tank…');
   await nextFrame();
 
   // Step 4: Event listeners + bubbles
