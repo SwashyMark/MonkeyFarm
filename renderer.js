@@ -2353,7 +2353,7 @@ function renderTankLevel() {
 }
 
 function renderHeader() {
-  const alive = state.monkeys.filter(m => m.alive);
+  const alive = state.monkeys.filter(m => m.alive && !m.inStorage);
   document.getElementById('stat-pop').textContent  = alive.length;
   document.getElementById('stat-gen').textContent  = state.stats.totalGenerations;
   document.getElementById('stat-born').textContent = state.stats.totalBorn;
@@ -4059,8 +4059,28 @@ function renderTimerStats() {
   document.getElementById('stat-offline-time').textContent = fmtDuration(state.totalOfflineMs || 0);
 }
 
-function initGame() {
+function setLoadingProgress(pct, label) {
+  const fill = document.getElementById('loading-bar-fill');
+  const lbl  = document.getElementById('loading-label');
+  if (fill) fill.style.width = pct + '%';
+  if (lbl)  lbl.textContent  = label;
+}
+
+function nextFrame() {
+  return new Promise(resolve => requestAnimationFrame(resolve));
+}
+
+async function initGame() {
+  // Show loading screen (already visible by default in HTML)
+  setLoadingProgress(5, 'Loading save data…');
+  await nextFrame();
+
+  // Step 1: Load & migrate state
   state = loadState();
+  setLoadingProgress(30, 'Restoring your farm…');
+  await nextFrame();
+
+  // Step 2: Init timestamps + UI state
   state.tanks.forEach(t => { if (!t.tankCreatedAt) t.tankCreatedAt = Date.now(); });
   if (localStorage.getItem('sidebarCollapsed') === '1') {
     document.body.classList.add('sidebar-mini');
@@ -4077,11 +4097,32 @@ function initGame() {
     const resetRow = document.getElementById('fps-stress-reset-row');
     if (resetRow) resetRow.style.display = '';
   }
+  setLoadingProgress(50, 'Calculating offline progress…');
+  await nextFrame();
+
+  // Step 3: Offline progress
   applyOfflineProgress();
   state.lastTick = Date.now();
+  setLoadingProgress(70, 'Setting up the tank…');
+  await nextFrame();
 
+  // Step 4: Event listeners + bubbles
   setupEventListeners();
   generateBubbles();
+  setLoadingProgress(85, 'Rendering…');
+  await nextFrame();
+
+  // Step 5: First render (sim still paused implicitly — loops not started yet)
+  renderAll();
+  setLoadingProgress(100, 'Ready!');
+  await nextFrame();
+
+  // Hide loading screen, then start loops
+  const screen = document.getElementById('loading-screen');
+  if (screen) {
+    screen.classList.add('hidden');
+    screen.addEventListener('transitionend', () => screen.remove(), { once: true });
+  }
 
   // Tick loop: every 1000ms
   setInterval(() => {
@@ -4094,10 +4135,8 @@ function initGame() {
     }
   }, 1000);
 
-  // Render loop: every 100ms
+  // Render loop: every 25ms
   setInterval(renderAll, 25);
-
-  renderAll();
 }
 
 document.addEventListener('DOMContentLoaded', initGame);

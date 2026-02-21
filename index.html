@@ -1070,9 +1070,46 @@
         0%,100% { text-shadow: 0 0 8px 3px rgba(100,255,200,0.6); }
         50%      { text-shadow: 0 0 14px 6px rgba(100,255,200,0.9); }
       }
+      /* ── LOADING SCREEN ── */
+      #loading-screen {
+        position: fixed; inset: 0; z-index: 9999;
+        background: #050f1e;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 20px;
+        transition: opacity 0.5s ease;
+      }
+      #loading-screen.hidden { opacity: 0; pointer-events: none; }
+      #loading-title {
+        font-size: 22px; font-weight: 600;
+        color: #7fd8ff; letter-spacing: 2px;
+        text-shadow: 0 0 12px rgba(127,216,255,0.5);
+      }
+      #loading-bar-track {
+        width: 280px; height: 8px;
+        background: #0d2137; border-radius: 4px;
+        border: 1px solid #1a5f8a; overflow: hidden;
+      }
+      #loading-bar-fill {
+        height: 100%; width: 0%;
+        background: linear-gradient(90deg, #1a5f8a, #7fd8ff);
+        border-radius: 4px;
+        transition: width 0.25s ease;
+        box-shadow: 0 0 8px rgba(127,216,255,0.4);
+      }
+      #loading-label {
+        font-size: 11px; color: #5599bb; letter-spacing: 1px;
+      }
     </style>
   </head>
   <body>
+
+    <!-- LOADING SCREEN -->
+    <div id="loading-screen">
+      <div id="loading-title">SEA MONKEY FARM</div>
+      <div id="loading-bar-track"><div id="loading-bar-fill"></div></div>
+      <div id="loading-label">Initializing…</div>
+    </div>
 
     <!-- HEADER -->
     <div id="header">
