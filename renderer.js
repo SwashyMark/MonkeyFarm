@@ -2915,7 +2915,9 @@ function renderSnail() {
     corpseCount > 0
       ? `🐌 Snail — ${corpseCount} corpse${corpseCount > 1 ? 's' : ''} left to eat`
       : '🐌 Snail — tank is clean!';
-  const facing = pos.vx >= 0 ? 1 : -1;
+  // Windows Segoe emoji faces left by default; Apple emoji faces right — compensate
+  const emojiFlip = navigator.userAgent.includes('Windows') ? -1 : 1;
+  const facing = (pos.vx >= 0 ? 1 : -1) * emojiFlip;
   snailEl.style.transform = `translate(${pos.x}px, ${H - 54}px) scaleX(${facing})`;
   // Counter-flip the tooltip so it's always readable
   snailEl.querySelector('.snail-tooltip').style.transform = `translateX(-50%) scaleX(${facing})`;
