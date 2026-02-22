@@ -40,6 +40,364 @@ const ACTION_CLEAN_AMT  = 40;
 const OFFLINE_CAP_MS    = 4 * 60 * 60 * 1000; // 4 hours
 const OFFLINE_CHUNK_MS  = 10_000;              // simulate in 10s chunks
 
+const SNAIL_COST           = 1500;
+const SNAIL_EAT_INTERVAL   = 30_000; // eat one corpse every 30s
+const SNAIL_EGG_CHANCE     = 0.10;   // 10% chance per eat to accidentally snag a live egg
+
+// ── SCIENTIFIC GRANTS ─────────────────────────────────────────────────────────
+// type: 'snapshot'       — progress computed live from state
+// type: 'relative_count' — progress = current stat minus value at grant creation
+// type: 'timer'          — accumulate qualifying ms in gameTick
+const GRANT_POOL = [
+  { id:'iron_gut',        title:'Pollution Study',         type:'snapshot',
+    desc:'Provide 3 adults with the Iron Gut constitution for our toxicity research.',
+    target:3,  reward:{ cash:1500, shells:1 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.constitution,'constitution')==='H_IRON').length },
+  { id:'hyperactive',     title:'Velocity Trials',         type:'snapshot',
+    desc:'Breed 2 adults with Hyperactive Metabolism for our speed study.',
+    target:2,  reward:{ cash:1200, shells:1 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.metabolism,'metabolism')==='M_FAST').length },
+  { id:'filter_feeders',  title:'Biofiltration Contract',  type:'snapshot',
+    desc:'Maintain 3 Filter Feeder adults — they clean our lab tanks.',
+    target:3,  reward:{ cash:1800, shells:1 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&hasDominant(m.dna?.filt,'F')).length },
+  { id:'fan_tail',        title:'Hydrodynamics Study',     type:'snapshot',
+    desc:'Breed a sea monkey with a Fan Tail for swimming-force analysis.',
+    target:1,  reward:{ cash:900, shells:1 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN').length },
+  { id:'twin_tail',       title:'Twin Tail Specimen',      type:'snapshot',
+    desc:'Breed a sea monkey with a Twin Tail for comparative locomotion research.',
+    target:1,  reward:{ cash:1100, shells:1 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_DBL').length },
+  { id:'ancient_one',     title:'Longevity Research',      type:'snapshot',
+    desc:'Discover an Ancient One — a sea monkey of exceptional natural lifespan.',
+    target:1,  reward:{ cash:2000, shells:3 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.longevity,'longevity')==='L_ANC').length },
+  { id:'purple_specimen', title:'Chromatic Anomaly',       type:'snapshot',
+    desc:'Breed a rare Purple sea monkey for pigmentation study.',
+    target:1,  reward:{ cash:2000, shells:2 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='purple').length },
+  { id:'bioluminescent',  title:'Deep-Sea Glow Project',   type:'snapshot',
+    desc:'Breed a Bioluminescent sea monkey for light-organ analysis.',
+    target:1,  reward:{ cash:2500, shells:3 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_BIO').length },
+  { id:'void_black',      title:'Void Specimen Needed',    type:'snapshot',
+    desc:'Acquire a Void Black sea monkey for optical absorption tests.',
+    target:1,  reward:{ cash:3000, shells:5 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_VOID').length },
+  { id:'fan_and_green',   title:'Compound Specimen',       type:'snapshot',
+    desc:'Breed a sea monkey with Fan Tail AND Algae Green colouration.',
+    target:1,  reward:{ cash:2500, shells:4 },
+    progress:()=> state.monkeys.filter(m=>
+      m.alive&&!m.inStorage&&
+      resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN'&&
+      resolveColorPhenotype(m.dna?.body_color)==='C_GRN').length },
+  { id:'colony_size',     title:'Colony Census',           type:'snapshot',
+    desc:'Grow a single tank to 20 living sea monkeys.',
+    target:20, reward:{ cash:1000, shells:1 },
+    progress:()=> Math.max(0,...state.tanks.map(t=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.tankId===t.id).length)) },
+  { id:'big_adults',      title:'Adult Survey',            type:'snapshot',
+    desc:'Maintain 10 adult sea monkeys across all your tanks.',
+    target:10, reward:{ cash:2000, shells:2 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult').length },
+  { id:'generation_climb',title:'Generational Study',      type:'relative_count',
+    desc:'Breed 3 new generations from the point this grant was issued.',
+    target:3,  reward:{ cash:5500, shells:3 },
+    progress:(g)=> Math.max(0, state.stats.totalGenerations-(g.baseValue??state.stats.totalGenerations)) },
+  { id:'hatch_quota',     title:'Egg Hatching Quota',      type:'relative_count',
+    desc:'Hatch 20 eggs for population density research.',
+    target:20, reward:{ cash:1000, shells:1 },
+    progress:(g)=> Math.max(0, state.stats.totalBorn-(g.baseValue??state.stats.totalBorn)) },
+  { id:'survival_study',  title:'Survivability Study',     type:'timer',
+    desc:'Keep your tanks running with no deaths for 5 minutes straight.',
+    target:5*60_000, reward:{ cash:2500, shells:2 },
+    progress:(g)=> g.accumMs||0 },
+  { id:'water_quality',   title:'Optimal Conditions Trial',type:'timer',
+    desc:'Keep food, oxygen & cleanliness all above 70% for 3 minutes in any tank.',
+    target:3*60_000, reward:{ cash:2000, shells:1 },
+    progress:(g)=> g.accumMs||0 },
+];
+const GRANT_MAP = new Map(GRANT_POOL.map(g => [g.id, g]));
+
+// ── GRANT LOGIC ───────────────────────────────────────────────────────────────
+function generateGrants() {
+  if (!state.grants) state.grants = { active: [] };
+  const need    = 3 - state.grants.active.length;
+  if (need <= 0) return;
+  const activeIds = new Set(state.grants.active.map(g => g.id));
+  const eligible  = GRANT_POOL.filter(g => !activeIds.has(g.id));
+  const shuffled  = [...eligible].sort(() => Math.random() - 0.5);
+  const picks     = shuffled.slice(0, need);
+  for (const g of picks) {
+    const entry = { id: g.id, done: false };
+    if (g.id === 'generation_climb') entry.baseValue = state.stats.totalGenerations;
+    if (g.id === 'hatch_quota')      entry.baseValue = state.stats.totalBorn;
+    if (g.id === 'survival_study')   { entry.accumMs = 0; entry.lastDeathCount = state.stats.totalDied; }
+    if (g.id === 'water_quality')    entry.accumMs = 0;
+    state.grants.active.push(entry);
+  }
+}
+
+function checkGrantsInTick(dtMs) {
+  const grants = state.grants?.active;
+  if (!grants?.length) return;
+  let anyNewDone = false;
+  for (const g of grants) {
+    if (g.done) continue;
+    const def = GRANT_MAP.get(g.id);
+    if (!def) continue;
+    if (def.type === 'timer') {
+      if (g.id === 'survival_study') {
+        if (state.stats.totalDied > (g.lastDeathCount ?? state.stats.totalDied)) {
+          g.accumMs = 0;
+          g.lastDeathCount = state.stats.totalDied;
+        } else {
+          g.accumMs = (g.accumMs || 0) + dtMs;
+        }
+      } else if (g.id === 'water_quality') {
+        const anyGood = state.tanks.some(t =>
+          t.eggsAdded && t.food >= 70 && t.oxygen >= 70 && t.cleanliness >= 70);
+        if (anyGood) g.accumMs = (g.accumMs || 0) + dtMs;
+      }
+    }
+    if (def.progress(g) >= def.target) {
+      g.done = true;
+      anyNewDone = true;
+      addNotification(`📋 Grant complete: "${def.title}"!`);
+    }
+  }
+  if (anyNewDone) _grantsSig = '';
+}
+
+function claimGrant(id) {
+  const grants = state.grants?.active || [];
+  const g = grants.find(g => g.id === id && g.done);
+  if (!g) return;
+  const def = GRANT_MAP.get(id);
+  if (!def) return;
+  const cashMult  = skOn('trust_fund')    ? 5 : 1;
+  const shellMult = skOn('shell_bounty')  ? 3 : 1;
+  const cashAmt   = def.reward.cash   * cashMult;
+  const shellsAmt = def.reward.shells * shellMult;
+  state.currency += cashAmt;
+  state.shells = (state.shells || 0) + shellsAmt;
+  const shellStr = shellsAmt ? ` +${shellsAmt} 🐚` : '';
+  if (cashMult > 1)  addNotification(`💰 Trust Fund: ${cashMult}× cash!`);
+  if (shellMult > 1) addNotification(`🐚 Shell Bounty: ${shellMult}× shells!`);
+  addLog(`📋 Grant claimed: "${def.title}" — +£${cashAmt}${shellStr}`);
+  addNotification(`📋 +£${cashAmt}${shellStr}`);
+  state.grants.active = state.grants.active.filter(g => g.id !== id);
+  generateGrants(); // top back up to 3
+  _grantsSig = '';
+  saveState();
+}
+
+let _grantsSig = '';
+function renderGrants() {
+  const grants = state.grants?.active || [];
+  const anyDone = grants.some(g => g.done);
+  const dot = document.getElementById('grants-notify-dot');
+  if (dot) dot.style.display = anyDone ? 'block' : 'none';
+
+  const modal = document.getElementById('grants-modal');
+  if (!modal?.classList.contains('open')) return;
+
+  const sig = JSON.stringify(grants.map(g => {
+    const def = GRANT_MAP.get(g.id);
+    return { id: g.id, done: g.done, prog: def ? def.progress(g) : 0 };
+  }));
+  if (sig === _grantsSig) return;
+  _grantsSig = sig;
+
+  const list = document.getElementById('grants-list');
+  const refreshRow = document.getElementById('grants-refresh-row');
+  list.innerHTML = grants.map(g => {
+    const def = GRANT_MAP.get(g.id);
+    if (!def) return '';
+    const prog   = Math.min(def.progress(g), def.target);
+    const pct    = Math.min(100, (prog / def.target) * 100);
+    let progressLabel;
+    if (def.type === 'timer') {
+      const secProg   = Math.floor(prog / 1000);
+      const secTarget = Math.floor(def.target / 1000);
+      const minP = Math.floor(secProg / 60),  secP = secProg % 60;
+      const minT = Math.floor(secTarget / 60), secT = secTarget % 60;
+      progressLabel = `${minP}:${String(secP).padStart(2,'0')} / ${minT}:${String(secT).padStart(2,'0')}`;
+    } else {
+      progressLabel = `${prog} / ${def.target}`;
+    }
+    const rewardHTML =
+      `<span class="grant-reward-cash">+$${def.reward.cash}</span>` +
+      (def.reward.shells ? ` <span class="grant-reward-shells">+${def.reward.shells} 🐚</span>` : '');
+    const typeLabel = def.type === 'snapshot' ? 'Live' : def.type === 'relative_count' ? 'Count' : 'Timer';
+    const cardClass = g.done ? 'grant-card complete' : 'grant-card';
+    const badgeClass = g.done ? 'grant-badge complete' : 'grant-badge active';
+    return `<div class="${cardClass}">
+      <div class="grant-card-top">
+        <span class="${badgeClass}">${typeLabel}</span>
+        <span class="grant-title">${def.title}</span>
+      </div>
+      <div class="grant-desc">${def.desc}</div>
+      <div class="grant-progress-wrap">
+        <div class="grant-progress-bar" style="width:${pct}%"></div>
+      </div>
+      <div class="grant-footer">
+        <span class="grant-progress-text">${progressLabel}</span>
+        <span class="grant-reward">${rewardHTML}</span>
+        ${g.done ? `<button class="grant-claim-btn" data-claim-grant="${g.id}">Claim</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  refreshRow.innerHTML = '';
+}
+
+// ── SKILL TREE ────────────────────────────────────────────────────────────────
+const SKILL_TREE = [
+  { id:'genetics',   icon:'🧬', label:'Geneticist', nodes:[
+    { id:'mendels_luck',       title:"Mendel's Luck",      maxLevel:5, costs:[2,3,3,4,4],
+      desc:n=>`+${n}% to all mutation rates.` },
+    { id:'dominant_recessive', title:'Dominant Recessive', maxLevel:1, costs:[3],
+      desc:()=>'Rare recessive genes have a 10% chance to express as dominant.' },
+    { id:'mitosis',            title:'Mitosis',            maxLevel:1, costs:[5],
+      desc:()=>'5% chance for an egg to hatch as identical twins.' },
+    { id:'radiant_glow',       title:'Radiant Glow',       maxLevel:1, costs:[8],
+      desc:()=>'Bioluminescent & Gold variants take 50% less pollution damage.' },
+    { id:'dna_archive',        title:'DNA Archive',        maxLevel:1, costs:[12], capstone:true,
+      desc:()=>"Store one sea monkey's DNA. New hatchlings have a 15% chance to inherit it." },
+  ]},
+  { id:'automator',  icon:'⚙️', label:'Automator',  nodes:[
+    { id:'teflon_glass',   title:'Teflon Glass',   maxLevel:1, costs:[2],
+      desc:()=>'Cleanliness drains 15% slower.' },
+    { id:'preservatives',  title:'Preservatives',  maxLevel:1, costs:[3],
+      desc:()=>'Corpses take 20% longer to decay.' },
+    { id:'phantom_siphon', title:'Phantom Siphon', maxLevel:1, costs:[5],
+      desc:()=>'A ghostly baster automatically removes one corpse every 60 seconds.' },
+    { id:'aerobic_bacteria',title:'Aerobic Bacteria',maxLevel:1, costs:[8],
+      desc:()=>'Tanks passively regenerate a small amount of oxygen on their own.' },
+    { id:'circle_of_life', title:'Circle of Life', maxLevel:1, costs:[12], capstone:true,
+      desc:()=>'Dead bodies no longer pollute the tank — they dissolve into food instead.' },
+  ]},
+  { id:'capitalist', icon:'💰', label:'Capitalist', nodes:[
+    { id:'bulk_discount',    title:'Bulk Discount',    maxLevel:1, costs:[2],
+      desc:()=>'All shop items cost 10% less.' },
+    { id:'shell_bounty',     title:'Shell Bounty',     maxLevel:1, costs:[3],
+      desc:()=>'Golden Shell rewards from grants are tripled.' },
+    { id:'viral_marketing',  title:'Viral Marketing',  maxLevel:1, costs:[5],
+      desc:()=>'Selling a rare variant doubles molt income for 3 minutes.' },
+    { id:'angel_investor',   title:'Angel Investor',   maxLevel:1, costs:[8],
+      desc:()=>'First time each tank reaches 50 sea monkeys, receive a £3,000 cash bonus.' },
+    { id:'trust_fund',       title:'Trust Fund',       maxLevel:1, costs:[12], capstone:true,
+      desc:()=>'Scientific grants pay 5× more cash.' },
+  ]},
+  { id:'caretaker',  icon:'💚', label:'Caretaker',  nodes:[
+    { id:'incubator',         title:'Incubator',         maxLevel:1, costs:[2],
+      desc:()=>'Eggs hatch 30% faster.' },
+    { id:'iron_lungs',        title:'Iron Lungs',        maxLevel:1, costs:[3],
+      desc:()=>'Sea monkeys consume oxygen 15% slower.' },
+    { id:'fountain_of_youth', title:'Fountain of Youth', maxLevel:1, costs:[5],
+      desc:()=>'Adult life expectancy increased by 20%.' },
+    { id:'dietary_efficiency',title:'Dietary Efficiency',maxLevel:1, costs:[8],
+      desc:()=>'Sea monkeys consume food 20% slower.' },
+    { id:'cryo_pod',          title:'Cryo-Pod',          maxLevel:1, costs:[12], capstone:true,
+      desc:()=>'Designate one tank: sea monkeys in it never die of old age.' },
+  ]},
+];
+
+function sk(id)  { return state.skills?.[id] || 0; }
+function skOn(id){ return !!sk(id); }
+
+function canBuySkill(branchId, nodeId) {
+  const branch = SKILL_TREE.find(b => b.id === branchId);
+  if (!branch) return false;
+  const idx  = branch.nodes.findIndex(n => n.id === nodeId);
+  if (idx < 0) return false;
+  const node = branch.nodes[idx];
+  const cur  = sk(nodeId);
+  if (cur >= node.maxLevel) return false;           // already maxed
+  if (idx > 0) {                                    // previous node must be maxed
+    const prev = branch.nodes[idx - 1];
+    if (sk(prev.id) < prev.maxLevel) return false;
+  }
+  const cost = node.costs[cur] ?? node.costs[node.costs.length - 1];
+  return (state.shells || 0) >= cost;
+}
+
+function buySkill(branchId, nodeId) {
+  if (!canBuySkill(branchId, nodeId)) return;
+  const branch = SKILL_TREE.find(b => b.id === branchId);
+  const node   = branch.nodes.find(n => n.id === nodeId);
+  const cur    = sk(nodeId);
+  const cost   = node.costs[cur] ?? node.costs[node.costs.length - 1];
+  state.shells -= cost;
+  if (!state.skills) state.skills = {};
+  state.skills[nodeId] = cur + 1;
+  const lvlStr = node.maxLevel > 1 ? ` (Level ${cur + 1})` : '';
+  addLog(`🌿 Skill unlocked: ${node.title}${lvlStr}`);
+  addNotification(`🌿 ${node.title}${lvlStr} unlocked!`);
+  _skillSig = '';
+  saveState();
+}
+
+let _skillSig = '';
+function renderSkillTree() {
+  const modal = document.getElementById('skills-modal');
+  if (!modal?.classList.contains('open')) return;
+
+  const sig = JSON.stringify(state.skills) + (state.shells || 0);
+  if (sig === _skillSig) return;
+  _skillSig = sig;
+
+  document.getElementById('skills-shells-val').textContent = state.shells || 0;
+
+  const container = document.getElementById('skills-branches');
+  container.innerHTML = SKILL_TREE.map(branch => {
+    const nodes = branch.nodes.map((node, idx) => {
+      const cur     = sk(node.id);
+      const maxed   = cur >= node.maxLevel;
+      const prevOk  = idx === 0 || sk(branch.nodes[idx - 1].id) >= branch.nodes[idx - 1].maxLevel;
+      const locked  = !prevOk;
+      const cost    = node.costs[cur] ?? node.costs[node.costs.length - 1];
+      const canAffd = !locked && !maxed && (state.shells || 0) >= cost;
+      const levelStr = node.maxLevel > 1 ? ` <span class="skill-level">Lv ${cur}/${node.maxLevel}</span>` : '';
+      const desc    = typeof node.desc === 'function' ? node.desc(Math.max(1, cur)) : node.desc;
+      let stateClass = maxed ? 'skill-node owned' : locked ? 'skill-node locked' : 'skill-node available';
+      if (node.capstone) stateClass += ' capstone';
+      const badge = maxed ? '<span class="skill-badge owned">✓</span>'
+        : locked ? '<span class="skill-badge locked">🔒</span>'
+        : `<span class="skill-badge cost">🐚${cost}</span>`;
+      const btn = maxed ? ''
+        : `<button class="skill-buy-btn${canAffd ? '' : ' disabled'}" data-buy-skill="${branch.id}:${node.id}" ${canAffd ? '' : 'disabled'}>
+            ${locked ? 'Locked' : 'Unlock'}
+           </button>`;
+      // Cryo-Pod: show tank selector when owned
+      let extra = '';
+      if (node.id === 'cryo_pod' && maxed) {
+        const opts = state.tanks.map(t =>
+          `<option value="${t.id}" ${state.skills.cryoPodTankId === t.id ? 'selected' : ''}>${t.name}</option>`
+        ).join('');
+        extra = `<select class="skill-cryo-select" id="cryo-pod-tank-select"><option value="">— Pick a tank —</option>${opts}</select>`;
+      }
+      // DNA Archive: show stored DNA info when owned
+      if (node.id === 'dna_archive' && maxed) {
+        const stored = state.skills.storedDNA;
+        extra = stored
+          ? `<div class="skill-dna-stored">Archived: <b>${stored.name}</b></div>`
+          : `<div class="skill-dna-stored dna-empty">No DNA stored. Archive a sea monkey from the Population view.</div>`;
+      }
+      return `<div class="${stateClass}">
+        <div class="skill-node-top">${badge}<span class="skill-title">${node.title}${levelStr}</span></div>
+        <div class="skill-desc">${desc}</div>
+        ${extra}
+        ${btn}
+      </div>`;
+    }).join('<div class="skill-connector"></div>');
+    return `<div class="skill-branch">
+      <div class="skill-branch-header">${branch.icon} ${branch.label}</div>
+      ${nodes}
+    </div>`;
+  }).join('');
+}
+
 // Automated aeration upgrade levels (index = level 0-5)
 const AERATION_LEVELS = [
   { name: 'None',       upgradeCost: 5,   durationMin:        0, durationMax:        0, maxOxygenBonus:  0, passiveRegen: 0   },
@@ -226,12 +584,12 @@ const STARTER_ALLELE_WEIGHTS = [
 ];
 
 const PHENOTYPE_DEFS = {
-  C_PINK:  { name: 'Standard Pink',  tier: 1, filterStr: 'hue-rotate(300deg)',                      shadow: '' },
-  C_GRN:   { name: 'Algae Green',    tier: 1, filterStr: 'hue-rotate(120deg) saturate(1.5)',        shadow: '' },
+  C_PINK:  { name: 'Standard Pink',  tier: 1, filterStr: 'hue-rotate(300deg)',                      cbFilterStr: 'hue-rotate(30deg) saturate(1.8)',           shadow: '' },
+  C_GRN:   { name: 'Algae Green',    tier: 1, filterStr: 'hue-rotate(120deg) saturate(1.5)',        cbFilterStr: 'hue-rotate(185deg) saturate(2)',            shadow: '' },
   purple:  { name: 'Purple',         tier: 2, filterStr: 'hue-rotate(260deg) saturate(2)',          shadow: '' },
   C_BLU:   { name: 'Deep Blue',      tier: 2, filterStr: 'hue-rotate(200deg)',                      shadow: '' },
   C_TRANS: { name: 'Transparent',    tier: 3, filterStr: 'saturate(0)',                             shadow: '', opacity: 0.35 },
-  C_BIO:   { name: 'Bioluminescent', tier: 3, filterStr: 'hue-rotate(150deg) saturate(3)',          shadow: '0 0 8px 3px rgba(100,255,200,0.6)' },
+  C_BIO:   { name: 'Bioluminescent', tier: 3, filterStr: 'hue-rotate(150deg) saturate(3)',          cbFilterStr: 'hue-rotate(205deg) saturate(3)',            shadow: '0 0 8px 3px rgba(100,255,200,0.6)' },
   C_GOLD:  { name: 'Midas Gold',     tier: 3, filterStr: 'sepia(1) saturate(4) hue-rotate(10deg)', shadow: '0 0 6px 2px rgba(255,200,0,0.5)' },
   C_VOID:  { name: 'Void Black',     tier: 3, filterStr: 'grayscale(1) brightness(0.2)',            shadow: '0 0 10px 3px rgba(120,120,255,0.7)' },
 };
@@ -388,13 +746,19 @@ function getMaxFood(tank) {
 }
 
 // ── Tank Level / XP ─────────────────────────────
-// Cumulative XP required to reach level N: 100*(N-1)*N/2
-// Level 1=0xp, Level 2=100xp, Level 3=300xp, Level 4=600xp, Level 5=1000xp …
-function xpToLevel(xp) {
-  return Math.max(1, Math.floor((1 + Math.sqrt(1 + 8 * (xp || 0) / 100)) / 2));
-}
+// XP per level grows exponentially: each level costs XP_FACTOR × the previous.
+// XP_BASE = XP to reach level 2; XP_FACTOR = per-level multiplier.
+// Cumulative XP for level N: XP_BASE * (XP_FACTOR^(N-1) - 1) / (XP_FACTOR - 1)
+// e.g. L2=100, L3=230, L4=399, L5=619, L10≈3200, L20≈18350, L30≈98600
+const XP_BASE   = 100;
+const XP_FACTOR = 1.3;
 function xpForLevel(level) {
-  return level <= 1 ? 0 : Math.floor(100 * (level - 1) * level / 2);
+  if (level <= 1) return 0;
+  return Math.floor(XP_BASE * (Math.pow(XP_FACTOR, level - 1) - 1) / (XP_FACTOR - 1));
+}
+function xpToLevel(xp) {
+  if (!xp || xp <= 0) return 1;
+  return Math.max(1, Math.floor(1 + Math.log(xp * (XP_FACTOR - 1) / XP_BASE + 1) / Math.log(XP_FACTOR)));
 }
 function addXP(amount) {
   if (!amount || amount <= 0) return;
@@ -463,6 +827,8 @@ const DEFAULT_TANK = {
   eggSkimmer: false,
   eggSkimmerActive: false,
   mutationInhibitorUntil: 0,
+  snail: false,
+  snailLastEat: null,
 };
 
 const DEFAULT_STATE = {
@@ -530,6 +896,18 @@ const DEFAULT_STATE = {
     autoFeeder:         false,
     mutationCatalyst:   false,
   },
+  shells: 0,
+  grants: { active: [] },
+  skills: {
+    mendels_luck:0, dominant_recessive:false, mitosis:false, radiant_glow:false, dna_archive:false,
+    storedDNA:null,
+    teflon_glass:false, preservatives:false, phantom_siphon:false, aerobic_bacteria:false, circle_of_life:false,
+    phantomLastEat:null,
+    bulk_discount:false, shell_bounty:false, viral_marketing:false, angel_investor:false, trust_fund:false,
+    viralMarketingExpiry:0, angelInvestorUsedTanks:[],
+    incubator:false, iron_lungs:false, fountain_of_youth:false, dietary_efficiency:false, cryo_pod:false,
+    cryoPodTankId:null,
+  },
 };
 
 // ─────────────────────────────────────────────
@@ -552,6 +930,10 @@ let paused = false;
 let pausedAt = 0;
 let limitViewToCap    = localStorage.getItem('limitViewToCap')    !== '0';  // default on
 let bioGlowAnimation  = localStorage.getItem('bioGlowAnimation')  !== '0';  // default on
+let colorTheme        = localStorage.getItem('colorTheme') || 'dark';
+// Apply immediately so loading screen inherits the saved theme
+if (colorTheme === 'light')      document.body.classList.add('theme-light');
+if (colorTheme === 'colorblind') document.body.classList.add('theme-colorblind');
 
 // Returns the currently-viewed tank object
 function activeTank() { return state.tanks[state.activeTankId]; }
@@ -609,7 +991,8 @@ function migrateState(loaded) {
   // Merge each tank with DEFAULT_TANK to fill in missing fields
   s.tanks = (loaded.tanks || []).map(t => Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_TANK)), t));
   s.activeTankId = loaded.activeTankId ?? 0;
-  s.stats = Object.assign({}, DEFAULT_STATE.stats, loaded.stats || {});
+  s.stats   = Object.assign({}, DEFAULT_STATE.stats,  loaded.stats   || {});
+  s.skills  = Object.assign({}, DEFAULT_STATE.skills, loaded.skills  || {});
   s.milestones   = loaded.milestones || {};
   s.log          = loaded.log || [];
   s.nextMonkeyId = loaded.nextMonkeyId || 1;
@@ -768,6 +1151,16 @@ function sellMonkey(id) {
   if (monkeyEls[id]) { monkeyEls[id].remove(); delete monkeyEls[id]; }
   _popSignature = '';
   addLog(`💰 ${m.name} sold for £${price}.`, null, m.tankId);
+  // Viral Marketing: selling a rare variant starts a 3-min molt-income boost
+  if (skOn('viral_marketing') && m.dna) {
+    const color = resolveColorPhenotype(m.dna.body_color);
+    const tail  = resolveAllele(m.dna.tail_shape, 'tail_shape');
+    const isRare = !['C_PINK','C_GRN'].includes(color) || tail !== 'T_STD';
+    if (isRare) {
+      state.skills.viralMarketingExpiry = Date.now() + 3 * 60_000;
+      addNotification('📣 Viral Marketing! Molt income ×2 for 3 min!');
+    }
+  }
   saveState();
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -798,11 +1191,13 @@ function buyShopItem(key) {
   const item = SHOP_ITEMS[key];
   if (!item) return;
   const now = Date.now();
+  // Apply Bulk Discount skill (10% off all shop purchases)
+  const effectiveCost = k => Math.floor(SHOP_ITEMS[k].cost * (skOn('bulk_discount') ? 0.9 : 1));
 
   // Inventory consumable — just add to stock
   if (item.type === 'inventory') {
-    if (state.currency < item.cost) { addNotification('Not enough funds!'); return; }
-    state.currency -= item.cost;
+    if (state.currency < effectiveCost(key)) { addNotification('Not enough funds!'); return; }
+    state.currency -= effectiveCost(key);
     state.inventory[item.invKey] = (state.inventory[item.invKey] || 0) + 1;
     addLog(`🛒 Purchased ${item.label}.`);
     saveState();
@@ -813,8 +1208,8 @@ function buyShopItem(key) {
   // Permanent — check not already owned
   if (item.type === 'permanent') {
     if (state.shop[key]) { addNotification('Already purchased!'); return; }
-    if (state.currency < item.cost) { addNotification('Not enough funds!'); return; }
-    state.currency -= item.cost;
+    if (state.currency < effectiveCost(key)) { addNotification('Not enough funds!'); return; }
+    state.currency -= effectiveCost(key);
     state.shop[key] = true;
     addLog(`🛒 Purchased ${item.label}.`);
     saveState();
@@ -823,25 +1218,25 @@ function buyShopItem(key) {
   }
 
   // Time-limited
-  if (state.currency < item.cost) { addNotification('Not enough funds!'); return; }
+  if (state.currency < effectiveCost(key)) { addNotification('Not enough funds!'); return; }
 
   if (key === 'offlineProtection') {
     const current = Math.max(now, state.offlineProtectionExpiry || 0);
     const maxExpiry = now + 24 * 60 * 60 * 1000;
     if (current >= maxExpiry) { addNotification('Max protection reached (24h)!'); return; }
-    state.currency -= item.cost;
+    state.currency -= effectiveCost(key);
     state.offlineProtectionExpiry = Math.min(current + OFFLINE_PROT_BLOCK, maxExpiry);
     addLog(`🛡 Offline protection extended to ${fmtProtRemaining()}.`);
   } else if (key === 'rationBoost') {
-    state.currency -= item.cost;
+    state.currency -= effectiveCost(key);
     state.shop.rationBoostExpiry = Math.max(now, state.shop.rationBoostExpiry || 0) + TIMED_BOOST_MS;
     addLog(`🍖 Ration Boost active for 2h.`);
   } else if (key === 'waterTreatment') {
-    state.currency -= item.cost;
+    state.currency -= effectiveCost(key);
     state.shop.waterTreatExpiry = Math.max(now, state.shop.waterTreatExpiry || 0) + TIMED_BOOST_MS;
     addLog(`💧 Water Treatment active for 2h.`);
   } else if (key === 'eggSurge') {
-    state.currency -= item.cost;
+    state.currency -= effectiveCost(key);
     state.shop.eggSurgeExpiry = Math.max(now, state.shop.eggSurgeExpiry || 0) + EGG_SURGE_MS;
     addLog(`🥚 Egg Surge active for 1h — doubled egg counts!`);
   }
@@ -884,6 +1279,19 @@ function toggleEggSkimmer(tankId) {
   tank.eggSkimmerActive = !tank.eggSkimmerActive;
   _tmSig = '';
   addLog(`🫧 ${tank.name} egg skimmer ${tank.eggSkimmerActive ? 'enabled' : 'disabled'}.`, null, tank.id);
+  saveState();
+}
+
+function buySnail(tankId) {
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank) return;
+  if (tank.snail) { addNotification('Snail already lives here!'); return; }
+  if (state.currency < SNAIL_COST) { addNotification('Not enough funds!'); return; }
+  state.currency -= SNAIL_COST;
+  tank.snail = true;
+  tank.snailLastEat = Date.now();
+  _tmSig = '';
+  addLog(`🐌 Snail companion moved into ${tank.name} — it will eat corpses so you don't have to.`, null, tank.id);
   saveState();
 }
 
@@ -1111,14 +1519,21 @@ function getMasteryBonuses() {
 // 8. GENETICS
 // ─────────────────────────────────────────────
 function inheritGenes(parentA, parentB, glowingFlakesActive = false, noMutation = false) {
-  const catalystMult = (!noMutation && state.shop?.mutationCatalyst) ? 1.5 : 1;
-  const mutMult = noMutation ? 0 : (glowingFlakesActive ? 10 : 1) * catalystMult;
+  const catalystMult  = (!noMutation && state.shop?.mutationCatalyst) ? 1.5 : 1;
+  const mendelsBonus  = 1 + (sk('mendels_luck') * 0.01);
+  const mutMult = noMutation ? 0 : (glowingFlakesActive ? 10 : 1) * catalystMult * mendelsBonus;
 
   function inheritLocus(pA, pB, geneId) {
     const gene = GENE_DATA.find(g => g.id === geneId);
     let a = pA[Math.floor(Math.random() * 2)];
     let b = pB[Math.floor(Math.random() * 2)];
     function maybeMutate(allele) {
+      // Dominant Recessive: 10% chance to express a higher-dominance allele instead
+      if (skOn('dominant_recessive') && Math.random() < 0.10) {
+        const cur = gene.alleles.find(al => al.code === allele);
+        const higher = gene.alleles.filter(al => (al.dominance_level ?? 10) > (cur?.dominance_level ?? 10) && al.mutation_chance > 0);
+        if (higher.length) return higher[Math.floor(Math.random() * higher.length)].code;
+      }
       for (const al of gene.alleles) {
         if (!al.mutation_chance || al.code === allele) continue;
         if (Math.random() < al.mutation_chance * mutMult) return al.code;
@@ -1272,9 +1687,13 @@ function gameTick(dtMs) {
       state._autoFeedAccum = (state._autoFeedAccum || 0) + dtSec;
       if (state._autoFeedAccum >= 30) { state._autoFeedAccum -= 30; autoFeedBonus = 5; }
     }
-    tank.food        = Math.max(0, Math.min(getMaxFood(tank),        tank.food        - foodDrain * dtSec * mb.foodMult * mb.voidHungerMult * foodDrainMult + feederRegen * dtSec + autoFeedBonus));
-    tank.oxygen      = Math.max(0, Math.min(getMaxOxygen(tank),      tank.oxygen      - OXYGEN_DRAIN_PER * aliveNonEgg.length * dtSec * mb.oxygenMult + (oxygenGain + aerRegen + BASE_OXYGEN_REGEN) * dtSec));
-    tank.cleanliness = Math.max(0, Math.min(getMaxCleanliness(tank), tank.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadTank.length) * dtSec * mb.cleanMult * cleanDrainMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
+    const skillFoodMult  = skOn('dietary_efficiency') ? 0.80 : 1;
+    const skillO2Mult    = skOn('iron_lungs')         ? 0.85 : 1;
+    const skillCleanMult = skOn('teflon_glass')       ? 0.85 : 1;
+    const skillO2Regen   = skOn('aerobic_bacteria')   ? 0.03 : 0;
+    tank.food        = Math.max(0, Math.min(getMaxFood(tank),        tank.food        - foodDrain * dtSec * mb.foodMult * mb.voidHungerMult * foodDrainMult * skillFoodMult + feederRegen * dtSec + autoFeedBonus));
+    tank.oxygen      = Math.max(0, Math.min(getMaxOxygen(tank),      tank.oxygen      - OXYGEN_DRAIN_PER * aliveNonEgg.length * dtSec * mb.oxygenMult * skillO2Mult + (oxygenGain + aerRegen + BASE_OXYGEN_REGEN + skillO2Regen) * dtSec));
+    tank.cleanliness = Math.max(0, Math.min(getMaxCleanliness(tank), tank.cleanliness - (CLEAN_DRAIN_PER * aliveNonEgg.length + corpseRate * deadTank.length) * dtSec * mb.cleanMult * cleanDrainMult * skillCleanMult + (cleanGain + skimRegen + BASE_CLEAN_REGEN) * dtSec));
 
     if (debugMode) {
       if (debugLocks.food   !== 'normal') tank.food        = debugLocks.food   === '0' ? 0 : 100;
@@ -1305,14 +1724,41 @@ function gameTick(dtMs) {
     // --- Process births for this tank ---
     processBirths(aliveTank, tank);
 
+    // --- Snail companion: eats one corpse on its timer, may snag a live egg ---
+    if (tank.snail) {
+      if (!tank.snailLastEat) tank.snailLastEat = Date.now();
+      const snailElapsed = (Date.now() - tank.snailLastEat) * (debugMode ? debugSpeed : 1);
+      if (snailElapsed >= SNAIL_EAT_INTERVAL) {
+        tank.snailLastEat = Date.now();
+        const corpseIdx = state.monkeys.findIndex(m => m.tankId === tank.id && !m.alive && m.diedAt);
+        if (corpseIdx !== -1) {
+          state.monkeys.splice(corpseIdx, 1);
+          addLog(`🐌 The snail munched a corpse in ${tank.name}.`, null, tank.id);
+          // Small chance to accidentally eat a live egg
+          if (Math.random() < SNAIL_EGG_CHANCE) {
+            const eggIdx = state.monkeys.findIndex(m => m.tankId === tank.id && m.alive && m.stage === 'egg' && !m.inStorage);
+            if (eggIdx !== -1) {
+              state.monkeys.splice(eggIdx, 1);
+              addLog(`🐌 Oops! The snail ate an egg by mistake in ${tank.name}!`, null, tank.id);
+              addNotification(`🐌 Snail ate an egg!`);
+            }
+          }
+        }
+      }
+    }
+
     // --- Auto-remove corpses after 5 minutes, penalise cleanliness ---
-    const CORPSE_TTL = 5 * 60 * 1000;
+    const CORPSE_TTL = 5 * 60 * 1000 * (skOn('preservatives') ? 1.2 : 1);
     const now = Date.now();
     const beforeLen = state.monkeys.filter(m => m.tankId === tank.id).length;
     state.monkeys = state.monkeys.filter(m => {
       if (m.tankId !== tank.id || m.alive || !m.diedAt) return true;
       if (now - m.diedAt >= CORPSE_TTL) {
-        tank.cleanliness = Math.max(0, tank.cleanliness - 5);
+        if (skOn('circle_of_life')) {
+          tank.food = Math.min(100, tank.food + 5); // dissolve into food
+        } else {
+          tank.cleanliness = Math.max(0, tank.cleanliness - 5);
+        }
         return false;
       }
       return true;
@@ -1320,7 +1766,11 @@ function gameTick(dtMs) {
     const afterLen = state.monkeys.filter(m => m.tankId === tank.id).length;
     if (afterLen < beforeLen) {
       const removed = beforeLen - afterLen;
-      addLog(`🧹 Corpse${removed > 1 ? 's' : ''} decayed. -${removed * 5} cleanliness.`, null, tank.id);
+      if (skOn('circle_of_life')) {
+        addLog(`♻️ Corpse${removed > 1 ? 's' : ''} dissolved into nutrients in ${tank.name}.`, null, tank.id);
+      } else {
+        addLog(`🧹 Corpse${removed > 1 ? 's' : ''} decayed. -${removed * 5} cleanliness.`, null, tank.id);
+      }
     }
   }
 
@@ -1328,6 +1778,37 @@ function gameTick(dtMs) {
   const livePop = state.monkeys.filter(m => m.alive).length;
   if (livePop > state.stats.peakPopulation) state.stats.peakPopulation = livePop;
 
+  // --- Phantom Siphon: remove one corpse globally every 60s ---
+  if (skOn('phantom_siphon')) {
+    if (!state.skills.phantomLastEat) state.skills.phantomLastEat = Date.now();
+    const phElapsed = (Date.now() - state.skills.phantomLastEat) * (debugMode ? debugSpeed : 1);
+    if (phElapsed >= 60_000) {
+      state.skills.phantomLastEat = Date.now();
+      const ci = state.monkeys.findIndex(m => !m.alive && m.diedAt);
+      if (ci !== -1) {
+        const tankName = state.tanks.find(t => t.id === state.monkeys[ci].tankId)?.name || 'a tank';
+        state.monkeys.splice(ci, 1);
+        addLog(`👻 The Phantom Siphon removed a corpse from ${tankName}.`);
+      }
+    }
+  }
+
+  // --- Angel Investor: £3,000 bonus first time each tank hits 50 monkeys ---
+  if (skOn('angel_investor')) {
+    if (!state.skills.angelInvestorUsedTanks) state.skills.angelInvestorUsedTanks = [];
+    for (const tank of state.tanks) {
+      if (state.skills.angelInvestorUsedTanks.includes(tank.id)) continue;
+      const count = state.monkeys.filter(m => m.alive && !m.inStorage && m.tankId === tank.id).length;
+      if (count >= 50) {
+        state.skills.angelInvestorUsedTanks.push(tank.id);
+        state.currency += 3000;
+        addLog(`💸 Angel Investor triggered in ${tank.name}! +£3,000`);
+        addNotification(`💸 Angel Investor! +£3,000`);
+      }
+    }
+  }
+
+  checkGrantsInTick(dtMs);
   checkMilestones();
   saveState();
 }
@@ -1344,7 +1825,11 @@ function updateMonkeyHealth(m, dtSec, t) {
 
   // Constitution-based dirty water damage: H_IRON (0.8 res) takes far less; H_SENS (-0.5 res) takes more
   const stats = resolveStats(m);
-  if (t.cleanliness < 20) dmg += DMG_DIRTY * (1 - stats.pollutionRes) * dtSec;
+  if (t.cleanliness < 20) {
+    const radiantMult = skOn('radiant_glow') &&
+      ['C_BIO','C_GOLD'].includes(resolveColorPhenotype(m.dna?.body_color)) ? 0.5 : 1;
+    dmg += DMG_DIRTY * (1 - stats.pollutionRes) * radiantMult * dtSec;
+  }
 
   if (dmg === 0 && t.food > 50 && t.oxygen > 50 && t.cleanliness > 50) {
     regen = REGEN_RATE * dtSec;
@@ -1370,7 +1855,7 @@ function updateMonkeyStage(m, tank) {
     if (Math.random() < 0.2) createMolt(m, 'egg');
     m.stage = 'baby';
     m.stageStartTime = now;
-    m.stageDuration = randRange(...BABY_GROW) / stats.growthSpeed;
+    m.stageDuration = randRange(...BABY_GROW) / stats.growthSpeed * (skOn('incubator') ? 0.7 : 1);
     checkDexDiscovery(m);
     addXP(5);
     addLog(`🐠 ${m.name} hatched!`, '🐠 hatched!', m.tankId);
@@ -1386,12 +1871,17 @@ function updateMonkeyStage(m, tank) {
     m.stage = 'adult';
     m.stageStartTime = now;
     const mb = getMasteryBonuses();
-    m.stageDuration = randRange(...ADULT_LIFE) * stats.lifeMult * mb.lifespanMult;
+    m.stageDuration = randRange(...ADULT_LIFE) * stats.lifeMult * mb.lifespanMult * (skOn('fountain_of_youth') ? 1.2 : 1);
     addXP(20);
     addLog(`🦐 ${m.name} is now an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, `🦐 became an adult ${m.sex === 'M' ? '(male)' : '(female)'}!`, m.tankId);
   } else if (m.stage === 'adult' && effectiveElapsed >= dur) {
     if (!_suppressDeaths && Date.now() >= (state.gracePeriodUntil || 0)) {
-      killMonkey(m, 'old age');
+      // Cryo-Pod: monkeys in the designated tank never die of old age
+      if (skOn('cryo_pod') && state.skills.cryoPodTankId === m.tankId) {
+        m.stageStartTime = now; // reset the clock — immortal
+      } else {
+        killMonkey(m, 'old age');
+      }
     }
   }
 }
@@ -1446,9 +1936,19 @@ function processBirths(aliveMonkeys, tank) {
     const count = eggSurgeActive ? baseCount * 2 : baseCount;
     for (let i = 0; i < count; i++) {
       if (aliveMonkeys.length >= getMaxPop(tank)) break;
-      const dna = inheritGenes(m, father || m, usedFlakes, inhibitorActive);
+      let dna = inheritGenes(m, father || m, usedFlakes, inhibitorActive);
+      // DNA Archive: 15% chance to use stored DNA instead
+      if (skOn('dna_archive') && state.skills.storedDNA && Math.random() < 0.15) {
+        dna = JSON.parse(JSON.stringify(state.skills.storedDNA.dna));
+      }
       const baby = createMonkey({ generation: gen, dna, tankId: tank.id });
       if (tank.eggSkimmerActive) baby.inStorage = true;
+      // Mitosis: 5% chance for an identical twin
+      if (skOn('mitosis') && Math.random() < 0.05 && aliveMonkeys.length + 1 < getMaxPop(tank)) {
+        const twin = createMonkey({ generation: gen, dna: JSON.parse(JSON.stringify(dna)), tankId: tank.id });
+        if (tank.eggSkimmerActive) twin.inStorage = true;
+        addLog(`🧬 Mitosis! ${baby.name} hatched with an identical twin!`, '🧬 Mitosis!', tank.id);
+      }
       // Build log tag: phenotype + expressed functional traits
       const phenotype = resolveColorPhenotype(dna.body_color);
       const def = PHENOTYPE_DEFS[phenotype];
@@ -1995,7 +2495,8 @@ function buildPopCard(m, now, hasMagnifier) {
     ${m.alive ? (() => {
       const price = calcSellPrice(m);
       const storBtn = m.stage === 'egg' ? `<button class="btn inv-use-btn pop-action-btn" data-store-egg="${m.id}">📦 Store</button>` : '';
-      return `<div class="pop-sell-row">${storBtn}<button class="btn pop-sell-btn" data-sell-monkey="${m.id}">💰 £${price}</button></div>`;
+      const archBtn = skOn('dna_archive') && m.stage !== 'egg' ? `<button class="btn inv-use-btn pop-action-btn" data-archive-dna="${m.id}" title="Archive DNA">🧬</button>` : '';
+      return `<div class="pop-sell-row">${storBtn}${archBtn}<button class="btn pop-sell-btn" data-sell-monkey="${m.id}">💰 £${price}</button></div>`;
     })() : ''}
   </div>`;
 }
@@ -2231,6 +2732,49 @@ function renderLifeSupport() {
 
 const moltEls = {};
 
+function renderSnail() {
+  const container = document.getElementById('monkey-container');
+  if (!container) return;
+  const tank = activeTank();
+
+  // Remove snail element if tank has no snail or we switched tanks
+  if (!tank || !tank.snail || tank.id !== _snailTankId) {
+    if (snailEl) { snailEl.remove(); snailEl = null; }
+    if (!tank || !tank.snail) return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  const W = rect.width  || 560;
+  const H = rect.height || 462;
+
+  // Initialise or restore position for this tank
+  if (!snailPos[tank.id]) {
+    snailPos[tank.id] = { x: 20 + Math.random() * (W - 60), vx: (Math.random() < 0.5 ? 1 : -1) * 0.25 };
+  }
+  const pos = snailPos[tank.id];
+  pos.x += pos.vx;
+  if (pos.x < 10)      { pos.x = 10;      pos.vx =  Math.abs(pos.vx); }
+  if (pos.x > W - 40)  { pos.x = W - 40;  pos.vx = -Math.abs(pos.vx); }
+
+  if (!snailEl) {
+    snailEl = document.createElement('div');
+    snailEl.className = 'snail-companion';
+    snailEl.innerHTML = `<span>🐌</span><div class="snail-tooltip">🐌 Snail Companion<br>Eats corpses • May eat eggs</div>`;
+    container.appendChild(snailEl);
+    _snailTankId = tank.id;
+  }
+
+  const corpseCount = state.monkeys.filter(m => m.tankId === tank.id && !m.alive).length;
+  snailEl.querySelector('.snail-tooltip').textContent =
+    corpseCount > 0
+      ? `🐌 Snail — ${corpseCount} corpse${corpseCount > 1 ? 's' : ''} left to eat`
+      : '🐌 Snail — tank is clean!';
+  const facing = pos.vx >= 0 ? 1 : -1;
+  snailEl.style.transform = `translate(${pos.x}px, ${H - 54}px) scaleX(${facing})`;
+  // Counter-flip the tooltip so it's always readable
+  snailEl.querySelector('.snail-tooltip').style.transform = `translateX(-50%) scaleX(${facing})`;
+}
+
 function renderMolts() {
   const container = document.getElementById('monkey-container');
   if (!state.molts) state.molts = [];
@@ -2262,11 +2806,13 @@ function renderMolts() {
       el.style.left = molt.x + 'px';
       el.style.top  = molt.y + 'px';
       el.addEventListener('click', () => {
-        const reward = { egg: 1, baby: 2, juvenile: 3 }[molt.fromStage] || 0;
+        const baseReward = { egg: 1, baby: 2, juvenile: 3 }[molt.fromStage] || 0;
+        const viralMult  = skOn('viral_marketing') && Date.now() < (state.skills?.viralMarketingExpiry || 0) ? 2 : 1;
+        const reward = baseReward * viralMult;
         if (reward) {
           state.currency = (state.currency || 0) + reward;
           addXP(2);
-          addNotification(`£${reward} collected!`);
+          addNotification(`£${reward} collected!${viralMult > 1 ? ' 📣' : ''}`);
         }
         state.molts = state.molts.filter(mo => mo.id !== molt.id);
       });
@@ -2341,10 +2887,13 @@ function renderAll() {
   renderGauges();
   renderPopulationCounts();
   renderMonkeys();
+  renderSnail();
   renderMolts();
   renderLifeSupport();
   renderInventory();
   renderShop();
+  renderGrants();
+  renderSkillTree();
   renderDebugPanel();
   renderMonkeydex();
   renderPopulation();
@@ -2370,10 +2919,10 @@ function renderTankLevel() {
 
 function renderHeader() {
   const alive = state.monkeys.filter(m => m.alive && !m.inStorage);
-  document.getElementById('stat-pop').textContent  = alive.length;
-  document.getElementById('stat-gen').textContent  = state.stats.totalGenerations;
-  document.getElementById('stat-born').textContent = state.stats.totalBorn;
-  document.getElementById('stat-died').textContent = state.stats.totalDied;
+  document.getElementById('stat-pop').textContent    = alive.length;
+  document.getElementById('stat-gen').textContent    = state.stats.totalGenerations;
+  document.getElementById('stat-born').textContent   = state.stats.totalBorn;
+  document.getElementById('stat-died').textContent   = state.stats.totalDied;
 }
 
 function renderSetupSection() {
@@ -2535,6 +3084,9 @@ function getMonkeyEmoji(m) {
 
 // Monkey DOM elements keyed by id
 const monkeyEls = {};
+let   snailEl = null;       // single DOM element for the snail (active tank only)
+let   _snailTankId = -1;    // which tank snailEl belongs to
+const snailPos = {};        // tankId → { x, vx } — visual position, not saved
 
 function renderMonkeys() {
   const container = document.getElementById('monkey-container');
@@ -2592,12 +3144,13 @@ function renderMonkeys() {
       const phenotype = m.dna ? resolveColorPhenotype(m.dna.body_color) : 'C_PINK';
       const def = PHENOTYPE_DEFS[phenotype] || {};
       el._isBio = phenotype === 'C_BIO';
+      const activeFilter = (colorTheme === 'colorblind' && def.cbFilterStr) ? def.cbFilterStr : def.filterStr;
       if (el._isBio) {
       } else if (def.opacity) {
-        emojiSpan.style.filter  = def.filterStr || '';
+        emojiSpan.style.filter  = activeFilter || '';
         emojiSpan.style.opacity = String(def.opacity);
       } else {
-        el.style.filter     = def.filterStr || '';
+        el.style.filter     = activeFilter || '';
         el.style.textShadow = def.shadow    || '';
       }
 
@@ -2874,6 +3427,11 @@ function renderTankManager() {
               : `<span class="tm-cap-desc">🫧 Egg Skimmer — auto-store eggs</span>
                  <button class="tm-cap-btn" data-buy-skimmer="${t.id}" ${state.currency < 2000 ? 'disabled' : ''}>£2,000</button>`
             }
+            ${t.snail
+              ? `<span class="tm-cap-desc">🐌 Snail Companion</span><span class="tm-cap-badge" style="font-size:10px;color:var(--tx-lo);">Installed</span>`
+              : `<span class="tm-cap-desc">🐌 Snail — eats corpses</span>
+                 <button class="tm-cap-btn" data-buy-snail="${t.id}" ${state.currency < SNAIL_COST ? 'disabled' : ''}>£${SNAIL_COST.toLocaleString()}</button>`
+            }
           </div>
         </div>
 
@@ -2976,7 +3534,7 @@ function renderStatusBar() {
   const bar = document.getElementById('statusbar');
   const msg = document.getElementById('status-msg');
   const t = activeTank();
-  const alive = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId);
+  const alive = state.monkeys.filter(m => m.alive && m.tankId === state.activeTankId && !m.inStorage);
 
   bar.className = '';
 
@@ -3117,6 +3675,7 @@ function renderInventory() {
   const hasLife = activeTank().eggsAdded;
 
   document.getElementById('currency-balance').textContent = `£${(state.currency || 0).toLocaleString()}`;
+  document.getElementById('inv-shells-balance').textContent = (state.shells || 0).toLocaleString();
 
   document.getElementById('inv-life-booster-cnt').textContent = inv.lifeBooster.toLocaleString();
   document.getElementById('inv-egg-pack-cnt').textContent     = inv.boosterEggPack.toLocaleString();
@@ -3427,6 +3986,24 @@ function releaseEggs() {
   saveState();
 }
 
+function setColorTheme(theme) {
+  colorTheme = theme;
+  localStorage.setItem('colorTheme', theme);
+  document.body.classList.remove('theme-light', 'theme-colorblind');
+  if (theme === 'light')       document.body.classList.add('theme-light');
+  if (theme === 'colorblind')  document.body.classList.add('theme-colorblind');
+  // Update active button state
+  ['dark', 'light', 'colorblind'].forEach(t => {
+    const btn = document.getElementById('theme-' + t);
+    if (btn) btn.classList.toggle('primary', t === theme);
+  });
+  // Force monkey re-render with new filters
+  for (const id of Object.keys(monkeyEls)) {
+    monkeyEls[id].remove();
+    delete monkeyEls[id];
+  }
+}
+
 function setupEventListeners() {
   // Shop
   document.getElementById('btn-open-shop').addEventListener('click', () => {
@@ -3444,6 +4021,54 @@ function setupEventListeners() {
   document.getElementById('shop-item-list').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-shop-buy]');
     if (btn) buyShopItem(btn.dataset.shopBuy);
+  });
+
+  // Grants modal
+  document.getElementById('btn-grants').addEventListener('click', () => {
+    _grantsSig = '';
+    renderGrants();
+    document.getElementById('grants-modal').classList.add('open');
+  });
+  document.getElementById('grants-close').addEventListener('click', () => {
+    document.getElementById('grants-modal').classList.remove('open');
+  });
+  document.getElementById('grants-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('grants-modal'))
+      document.getElementById('grants-modal').classList.remove('open');
+  });
+  document.getElementById('grants-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-claim-grant]');
+    if (btn) claimGrant(btn.dataset.claimGrant);
+  });
+
+  // Skill Tree modal
+  document.getElementById('btn-skills').addEventListener('click', () => {
+    _skillSig = '';
+    renderSkillTree();
+    document.getElementById('skills-modal').classList.add('open');
+  });
+  document.getElementById('skills-close').addEventListener('click', () => {
+    document.getElementById('skills-modal').classList.remove('open');
+  });
+  document.getElementById('skills-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('skills-modal'))
+      document.getElementById('skills-modal').classList.remove('open');
+  });
+  document.getElementById('skills-branches').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-buy-skill]');
+    if (btn && !btn.disabled) {
+      const [branchId, nodeId] = btn.dataset.buySkill.split(':');
+      buySkill(branchId, nodeId);
+      renderSkillTree();
+    }
+  });
+  document.getElementById('skills-branches').addEventListener('change', (e) => {
+    if (e.target.id === 'cryo-pod-tank-select') {
+      state.skills.cryoPodTankId = e.target.value ? Number(e.target.value) : null;
+      const t = state.tanks.find(t => t.id === state.skills.cryoPodTankId);
+      if (t) addLog(`🧊 Cryo-Pod assigned to ${t.name}.`);
+      saveState();
+    }
   });
 
   // Move monkey modal
@@ -3470,6 +4095,19 @@ function setupEventListeners() {
     // Store egg button takes priority
     const storeBtn = e.target.closest('[data-store-egg]');
     if (storeBtn) { storeEgg(Number(storeBtn.dataset.storeEgg)); return; }
+    // DNA Archive button
+    const archiveBtn = e.target.closest('[data-archive-dna]');
+    if (archiveBtn) {
+      const m = state.monkeys.find(m => m.id === Number(archiveBtn.dataset.archiveDna));
+      if (m?.dna) {
+        state.skills.storedDNA = { dna: JSON.parse(JSON.stringify(m.dna)), name: m.name };
+        addLog(`🧬 DNA archived: ${m.name}`);
+        addNotification(`🧬 DNA archived: ${m.name}`);
+        _skillSig = ''; _popSignature = '';
+        saveState();
+      }
+      return;
+    }
     // Sell button
     const sellBtn = e.target.closest('[data-sell-monkey]');
     if (sellBtn) { sellMonkey(Number(sellBtn.dataset.sellMonkey)); return; }
@@ -3679,6 +4317,7 @@ function setupEventListeners() {
         if (t.skimmer.startedAt  != null) t.skimmer.startedAt  += pauseDuration;
         if (t.feeder.startedAt   != null) t.feeder.startedAt   += pauseDuration;
         if (t.purifyStartTime    != null) t.purifyStartTime    += pauseDuration;
+        if (t.snailLastEat       != null) t.snailLastEat       += pauseDuration;
       }
       for (const m of state.monkeys) {
         if (m.stageStartTime != null) m.stageStartTime += pauseDuration;
@@ -3728,6 +4367,11 @@ function setupEventListeners() {
 
   document.getElementById('toggle-timers').addEventListener('change', (e) => {
     showTimers = e.target.checked;
+  });
+
+  // Colour theme buttons
+  ['dark', 'light', 'colorblind'].forEach(t => {
+    document.getElementById('theme-' + t).addEventListener('click', () => setColorTheme(t));
   });
 
   const limitViewToggle = document.getElementById('toggle-limit-view');
@@ -3840,6 +4484,8 @@ function setupEventListeners() {
     if (buySkimmerBtn) { buyEggSkimmer(Number(buySkimmerBtn.dataset.buySkimmer)); return; }
     const toggleSkimmerBtn = e.target.closest('[data-toggle-skimmer]');
     if (toggleSkimmerBtn) { toggleEggSkimmer(Number(toggleSkimmerBtn.dataset.toggleSkimmer)); return; }
+    const buySnailBtn = e.target.closest('[data-buy-snail]');
+    if (buySnailBtn) { buySnail(Number(buySnailBtn.dataset.buySnail)); return; }
     // Switch button
     const switchBtn = e.target.closest('[data-tm-switch]');
     if (switchBtn) {
@@ -4093,6 +4739,7 @@ async function initGame() {
 
   // Step 1: Load & migrate state
   state = loadState();
+  if (!state.grants?.active?.length) generateGrants();
   setLoadingProgress(30, 'Restoring your farm…');
   await nextFrame();
 
@@ -4128,6 +4775,7 @@ async function initGame() {
 
   // Step 4: Event listeners + bubbles
   setupEventListeners();
+  setColorTheme(colorTheme); // apply saved theme + mark active button
   generateBubbles();
   setLoadingProgress(85, 'Rendering…');
   await nextFrame();
