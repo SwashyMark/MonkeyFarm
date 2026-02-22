@@ -135,6 +135,16 @@
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
         font-size: 11px; color: var(--tx-mid);
       }
+      input[type=range].vol-slider {
+        -webkit-appearance: none; appearance: none;
+        width: 88px; height: 4px; border-radius: 2px;
+        background: var(--brd); outline: none; cursor: pointer;
+      }
+      input[type=range].vol-slider::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 13px; height: 13px; border-radius: 50%;
+        background: #4a9abb; cursor: pointer;
+      }
       .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
       .toggle-switch input { opacity: 0; width: 0; height: 0; }
       .toggle-slider {
@@ -1488,6 +1498,22 @@
               <button class="btn theme-btn" id="theme-dark"       style="width:auto;padding:3px 8px;font-size:10px;margin:0;">Dark</button>
               <button class="btn theme-btn" id="theme-light"      style="width:auto;padding:3px 8px;font-size:10px;margin:0;">Light</button>
               <button class="btn theme-btn" id="theme-colorblind" style="width:auto;padding:3px 8px;font-size:10px;margin:0;">Colourblind</button>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-row">
+            <span>Music</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="range" id="music-vol" class="vol-slider" min="0" max="1" step="0.01">
+              <span id="music-vol-pct" style="font-size:11px;color:var(--tx-hi);width:28px;text-align:right;font-variant-numeric:tabular-nums;">—</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <span style="color:var(--tx-lo);">Sound Effects</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="range" id="sfx-vol" class="vol-slider" min="0" max="1" step="0.01">
+              <span id="sfx-vol-pct" style="font-size:11px;color:var(--tx-hi);width:28px;text-align:right;font-variant-numeric:tabular-nums;">—</span>
             </div>
           </div>
         </div>

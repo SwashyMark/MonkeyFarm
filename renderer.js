@@ -164,6 +164,7 @@ function checkGrantsInTick(dtMs) {
       g.done = true;
       anyNewDone = true;
       addNotification(`📋 Grant complete: "${def.title}"!`);
+      AudioEngine.play('grant');
     }
   }
   if (anyNewDone) _grantsSig = '';
@@ -334,6 +335,7 @@ function buySkill(branchId, nodeId) {
   const lvlStr = node.maxLevel > 1 ? ` (Level ${cur + 1})` : '';
   addLog(`🌿 Skill unlocked: ${node.title}${lvlStr}`);
   addNotification(`🌿 ${node.title}${lvlStr} unlocked!`);
+  AudioEngine.play('skill');
   _skillSig = '';
   saveState();
 }
@@ -650,6 +652,141 @@ const MILESTONES_DEF = [
   { key: 'firstMastery',       emoji: '⭐', name: 'First Mastery',        desc: 'Achieve mastery of any variant.',              reward: '+150 XP',                         progress: () => [Object.values(state.dex||{}).filter(e=>e.mastered).length, 1] },
 ];
 
+// ── AUDIO ENGINE ─────────────────────────────────────────────────────────────
+const AudioEngine = (() => {
+  let _ctx      = null;
+  let _sfxBus   = null;
+  let _musicBus = null;
+  let _loopTimer = null;
+  let _playing  = false;
+  let _musicVol = parseFloat(localStorage.getItem('sfm_musicVol') || 0.45);
+  let _sfxVol   = parseFloat(localStorage.getItem('sfm_sfxVol')   || 0.70);
+
+  function _ensure() {
+    if (!_ctx) {
+      _ctx = new AudioContext();
+      _sfxBus = _ctx.createGain(); _sfxBus.gain.value = _sfxVol; _sfxBus.connect(_ctx.destination);
+      _musicBus = _ctx.createGain(); _musicBus.gain.value = _musicVol; _musicBus.connect(_ctx.destination);
+    }
+    if (_ctx.state === 'suspended') _ctx.resume();
+    return _ctx;
+  }
+
+  function setMusicVol(v) { _musicVol = v; localStorage.setItem('sfm_musicVol', v); if (_musicBus) _musicBus.gain.value = v; }
+  function setSfxVol(v)   { _sfxVol   = v; localStorage.setItem('sfm_sfxVol',   v); if (_sfxBus)   _sfxBus.gain.value   = v; }
+  function getMusicVol()  { return _musicVol; }
+  function getSfxVol()    { return _sfxVol;   }
+
+  function _osc(freq, type, tStart, dur, peakGain, bus) {
+    const o = _ctx.createOscillator(), e = _ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    e.gain.setValueAtTime(0, tStart);
+    e.gain.linearRampToValueAtTime(peakGain, tStart + Math.min(0.015, dur * 0.1));
+    e.gain.exponentialRampToValueAtTime(0.0001, tStart + dur);
+    o.connect(e); e.connect(bus); o.start(tStart); o.stop(tStart + dur + 0.05);
+  }
+  function _sweep(fA, fB, type, tStart, dur, peakGain, bus) {
+    const o = _ctx.createOscillator(), e = _ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(fA, tStart);
+    o.frequency.exponentialRampToValueAtTime(fB, tStart + dur);
+    e.gain.setValueAtTime(peakGain, tStart);
+    e.gain.exponentialRampToValueAtTime(0.0001, tStart + dur);
+    o.connect(e); e.connect(bus); o.start(tStart); o.stop(tStart + dur + 0.05);
+  }
+
+  const SFX = {
+    birth:     (b, t) => { _sweep(320, 720, 'sine', t, 0.14, 0.26, b); },
+    death:     (b, t) => { _sweep(180, 55, 'triangle', t, 0.32, 0.45, b); },
+    mate:      (b, t) => { _osc(659, 'sine', t, 0.18, 0.22, b); _osc(831, 'sine', t + 0.11, 0.18, 0.22, b); },
+    molt:      (b, t) => { _osc(1047, 'sine', t, 0.16, 0.30, b); },
+    sell:      (b, t) => { _osc(523, 'sine', t, 0.10, 0.24, b); _osc(784, 'sine', t + 0.10, 0.14, 0.24, b); },
+    levelup:   (b, t) => { [523, 659, 784, 1047].forEach((f, i) => _osc(f, 'sine', t + i * 0.11, 0.22, 0.30, b)); },
+    grant:     (b, t) => { [392, 494, 587, 784].forEach((f, i) => _osc(f, 'sine', t + i * 0.10, 0.35, 0.26, b)); },
+    skill:     (b, t) => { _sweep(220, 880, 'triangle', t, 0.26, 0.26, b); _osc(880, 'sine', t + 0.24, 0.14, 0.18, b); },
+    discovery: (b, t) => { [1047, 1319, 1047, 1568].forEach((f, i) => _osc(f, 'sine', t + i * 0.10, 0.18, 0.24, b)); },
+    feed:      (b, t) => { _sweep(400, 660, 'sine', t, 0.08, 0.20, b); },
+    aerate:    (b, t) => { [0, 0.07, 0.14].forEach((d, i) => _sweep(360 + i * 60, 700 + i * 60, 'sine', t + d, 0.07, 0.18, b)); },
+    clean:     (b, t) => { _sweep(620, 180, 'triangle', t, 0.22, 0.26, b); },
+  };
+
+  function play(name) {
+    if (_sfxVol < 0.01) return;
+    const ctx = _ensure();
+    const fn = SFX[name];
+    if (fn) fn(_sfxBus, ctx.currentTime + 0.01);
+  }
+
+  // ── Background Music ─────────────────────────────────────────────────────────
+  // Ambient aquatic loop: Am → Fmaj7 → C → Gsus2 (4 beats each, 72 BPM, ~13.3s)
+  const BPM  = 72;
+  const BEAT = 60 / BPM;
+  const LOOP = BEAT * 16;
+
+  // [freq, gain] pairs per chord
+  const CHORDS = [
+    [[110,0.10],[165,0.06],[220,0.06],[262,0.05]], // Am:   A2 E3 A3 C4
+    [[ 87,0.10],[131,0.06],[175,0.06],[220,0.05]], // F:    F2 C3 F3 A3
+    [[131,0.10],[196,0.06],[262,0.06],[330,0.05]], // C:    C3 G3 C4 E4
+    [[ 98,0.10],[147,0.06],[196,0.06],[262,0.05]], // Gsus: G2 D3 G3 C4
+  ];
+
+  // 16-beat sparse melody (null = rest); one octave up, pentatonic A-minor
+  const MEL = [440,null,392,null, 330,392,null,440, null,262,294,null, 262,null,220,null];
+
+  function _scheduleLoop(t0) {
+    if (!_playing || !_ctx) return;
+    const bus = _musicBus;
+
+    // Sub-bass drone — fades in/out across the full loop
+    const dOsc = _ctx.createOscillator(), dEnv = _ctx.createGain();
+    dOsc.type = 'sine'; dOsc.frequency.value = 55;
+    dEnv.gain.setValueAtTime(0, t0);
+    dEnv.gain.linearRampToValueAtTime(0.13, t0 + 0.6);
+    dEnv.gain.setValueAtTime(0.13, t0 + LOOP - 0.5);
+    dEnv.gain.linearRampToValueAtTime(0, t0 + LOOP);
+    dOsc.connect(dEnv); dEnv.connect(bus); dOsc.start(t0); dOsc.stop(t0 + LOOP + 0.1);
+
+    // Chord pads
+    CHORDS.forEach((chord, ci) => {
+      const cs = t0 + ci * BEAT * 4, cd = BEAT * 4.1;
+      chord.forEach(([freq, g]) => {
+        const o = _ctx.createOscillator(), e = _ctx.createGain();
+        o.type = 'sine'; o.frequency.value = freq;
+        e.gain.setValueAtTime(0, cs);
+        e.gain.linearRampToValueAtTime(g, cs + BEAT * 0.9);
+        e.gain.setValueAtTime(g, cs + cd - BEAT * 0.5);
+        e.gain.linearRampToValueAtTime(0, cs + cd);
+        o.connect(e); e.connect(bus); o.start(cs); o.stop(cs + cd + 0.1);
+      });
+    });
+
+    // Sparse melody (triangle, one octave above MEL values)
+    MEL.forEach((freq, bi) => {
+      if (!freq) return;
+      const ns = t0 + bi * BEAT;
+      _osc(freq * 2, 'triangle', ns, BEAT * 0.65, 0.052, bus);
+    });
+
+    // Queue next loop slightly before this one ends
+    const msUntilNext = Math.max(0, (t0 + LOOP - _ctx.currentTime - 0.15) * 1000);
+    _loopTimer = setTimeout(() => _scheduleLoop(t0 + LOOP), msUntilNext);
+  }
+
+  function startMusic() {
+    if (_playing) return;
+    _ensure(); _playing = true;
+    _scheduleLoop(_ctx.currentTime + 0.2);
+  }
+
+  function stopMusic() {
+    _playing = false;
+    if (_loopTimer) { clearTimeout(_loopTimer); _loopTimer = null; }
+  }
+
+  return { play, startMusic, stopMusic, setMusicVol, setSfxVol, getMusicVol, getSfxVol };
+})();
+
 // ─────────────────────────────────────────────
 // 2. DNA HELPER FUNCTIONS
 // ─────────────────────────────────────────────
@@ -769,6 +906,7 @@ function addXP(amount) {
     state.currency += 250;
     addLog(`⭐ Player reached Level ${next}! (+£250)`);
     addNotification(`⭐ Player Level Up! Now Level ${next} (+£250)`);
+    AudioEngine.play('levelup');
   }
 }
 
@@ -1151,6 +1289,7 @@ function sellMonkey(id) {
   if (monkeyEls[id]) { monkeyEls[id].remove(); delete monkeyEls[id]; }
   _popSignature = '';
   addLog(`💰 ${m.name} sold for £${price}.`, null, m.tankId);
+  AudioEngine.play('sell');
   // Viral Marketing: selling a rare variant starts a 3-min molt-income boost
   if (skOn('viral_marketing') && m.dna) {
     const color = resolveColorPhenotype(m.dna.body_color);
@@ -1463,6 +1602,7 @@ function killMonkey(monkey, cause) {
   state.stats.totalDied++;
   if (cause === 'old age') addXP(15);
   addLog(`💀 ${monkey.name} died (${cause})`, `💀 died (${cause})`, monkey.tankId);
+  AudioEngine.play('death');
   const condRow = document.querySelector(`[data-cond-tank="${monkey.tankId}"]`);
   if (condRow) {
     condRow.classList.remove('tank-row-flash');
@@ -1905,6 +2045,7 @@ function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   state.stats.totalMatingEvents++;
   addXP(5);
   addLog(`💕 ${female.name} & ${mate.name} mated!`, '💕 mated!', female.tankId);
+  AudioEngine.play('mate');
 }
 
 function processBirths(aliveMonkeys, tank) {
@@ -1967,6 +2108,7 @@ function processBirths(aliveMonkeys, tank) {
       if (traits.length) tag += '+' + traits.join('+');
       addXP(10);
       addLog(`🥚 ${m.name} laid egg: ${baby.name} [${tag}]!`, '🥚 egg laid!', tank.id);
+      AudioEngine.play('birth');
     }
     if (usedFlakes) addLog('✨ Glowing Flakes boosted mutation rates for this birth! (parents took damage)', null, tank.id);
   }
@@ -1991,6 +2133,7 @@ function checkDexDiscovery(monkey) {
       addXP(50);
       addLog(`🔬 NEW VARIANT DISCOVERED: ${def?.name || phenotype}!`);
       addNotification(`🔬 ${def?.name || phenotype} discovered!`);
+      AudioEngine.play('discovery');
     }
     checkMastery(phenotype);
   }
@@ -2006,6 +2149,7 @@ function checkDexDiscovery(monkey) {
       addXP(50);
       addLog(`🔬 NEW VARIANT DISCOVERED: ${name}!`);
       addNotification(`🔬 ${name} discovered!`);
+      AudioEngine.play('discovery');
     }
     checkMastery(tailCode);
   }
@@ -2022,6 +2166,7 @@ function checkDexDiscovery(monkey) {
       addXP(75);
       addLog(`🔬 NEW GENE DISCOVERED: ${name}!`);
       addNotification(`🔬 ${name} gene discovered!`);
+      AudioEngine.play('discovery');
     }
     checkMastery(code);
   }
@@ -2036,6 +2181,7 @@ function checkDexDiscovery(monkey) {
         addXP(75);
         addLog('🔬 NEW GENE DISCOVERED: Filter Feeder!');
         addNotification('🔬 Filter Feeder gene discovered!');
+        AudioEngine.play('discovery');
       }
       checkMastery('filterFeeder');
     }
@@ -2813,6 +2959,7 @@ function renderMolts() {
           state.currency = (state.currency || 0) + reward;
           addXP(2);
           addNotification(`£${reward} collected!${viralMult > 1 ? ' 📣' : ''}`);
+          AudioEngine.play('molt');
         }
         state.molts = state.molts.filter(mo => mo.id !== molt.id);
       });
@@ -4282,6 +4429,25 @@ function setupEventListeners() {
     addNotification('🗑️ Tank reset');
   });
 
+  // Volume sliders
+  const musicVolSlider = document.getElementById('music-vol');
+  const sfxVolSlider   = document.getElementById('sfx-vol');
+  const musicVolPct    = document.getElementById('music-vol-pct');
+  const sfxVolPct      = document.getElementById('sfx-vol-pct');
+  musicVolSlider.value = AudioEngine.getMusicVol();
+  sfxVolSlider.value   = AudioEngine.getSfxVol();
+  musicVolPct.textContent = Math.round(AudioEngine.getMusicVol() * 100) + '%';
+  sfxVolPct.textContent   = Math.round(AudioEngine.getSfxVol()   * 100) + '%';
+  musicVolSlider.addEventListener('input', () => {
+    AudioEngine.setMusicVol(parseFloat(musicVolSlider.value));
+    musicVolPct.textContent = Math.round(musicVolSlider.value * 100) + '%';
+  });
+  sfxVolSlider.addEventListener('input', () => {
+    AudioEngine.setSfxVol(parseFloat(sfxVolSlider.value));
+    sfxVolPct.textContent = Math.round(sfxVolSlider.value * 100) + '%';
+    AudioEngine.play('molt'); // preview the new SFX level
+  });
+
   document.getElementById('fps-stress-pop').addEventListener('change', () => {
     const input = document.getElementById('fps-stress-pop');
     const val = parseInt(input.value);
@@ -4548,6 +4714,7 @@ function setupEventListeners() {
     addXP(1);
     addLog(`🍔 Tank fed (+${feedAmt} food)`, null, t.id);
     addNotification('🍔 Fed!');
+    AudioEngine.play('feed');
     spawnFoodFlakes();
     saveState();
   });
@@ -4558,6 +4725,7 @@ function setupEventListeners() {
     addXP(1);
     addLog('💨 Tank aerated (+50 oxygen)', null, t.id);
     addNotification('💨 Aerated!');
+    AudioEngine.play('aerate');
     spawnBurstBubbles();
     saveState();
   });
@@ -4574,6 +4742,7 @@ function setupEventListeners() {
       addLog('🧹 Tank cleaned (+40 cleanliness)', null, t.id);
     }
     addNotification('🧹 Cleaned!');
+    AudioEngine.play('clean');
     saveState();
   });
 }
@@ -4789,7 +4958,7 @@ async function initGame() {
   const screen = document.getElementById('loading-screen');
   if (screen) {
     screen.classList.add('hidden');
-    screen.addEventListener('transitionend', () => screen.remove(), { once: true });
+    screen.addEventListener('transitionend', () => { screen.remove(); AudioEngine.startMusic(); }, { once: true });
   }
 
   // Tick loop: every 1000ms
