@@ -489,6 +489,49 @@
       }
       .snail-companion:hover .snail-tooltip { opacity: 1; }
 
+      /* Hydra micro-predator */
+      .hydra-creature {
+        position: absolute; cursor: pointer; user-select: none;
+        will-change: transform; z-index: 4; text-align: center;
+      }
+      .hydra-body {
+        font-size: 44px; line-height: 1;
+        animation: hydra-pulse 1.6s ease-in-out infinite;
+        filter: drop-shadow(0 0 10px rgba(220,60,60,0.85));
+        transition: transform 0.08s;
+        display: block;
+      }
+      .hydra-creature:active .hydra-body { transform: scale(0.8); }
+      @keyframes hydra-pulse {
+        0%,100% { transform: scale(1) translateY(0); }
+        50%      { transform: scale(1.08) translateY(-5px); }
+      }
+      .hydra-hp-wrap {
+        width: 44px; height: 5px; background: #2a0a0a;
+        border: 1px solid #622; border-radius: 3px; margin-top: 3px; overflow: hidden;
+      }
+      .hydra-hp-fill {
+        height: 100%; background: linear-gradient(90deg, #c22, #f55);
+        transition: width 0.1s; border-radius: 2px;
+      }
+      .hydra-hp-text {
+        font-size: 9px; color: #f88; text-align: center;
+        margin-top: 1px; font-weight: bold; line-height: 1;
+      }
+      .hydra-tooltip {
+        position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+        background: rgba(60,0,0,0.95); border: 1px solid #c33;
+        border-radius: 4px; padding: 4px 8px; font-size: 9px;
+        white-space: nowrap; color: #fbb; pointer-events: none;
+        opacity: 0; transition: opacity 0.2s; z-index: 10;
+      }
+      .hydra-creature:hover .hydra-tooltip { opacity: 1; }
+
+      /* Tank manager hydra alert */
+      .tm-hydra-alert { color: #e55; font-weight: 700; animation: hydra-alert-blink 1s step-end infinite; }
+      @keyframes hydra-alert-blink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+      .tm-hydra-kill-btn { background: #7a1a1a !important; border-color: #c33 !important; }
+
       /* Tank overlay (setup) */
       #tank-overlay {
         position: absolute; top: 28px; left: 0; right: 0; bottom: 0; z-index: 20;
@@ -1437,6 +1480,9 @@
               <button class="btn" id="btn-debug-give-flakes"  style="flex:1; font-size:10px; padding:4px;">+✨ Flakes</button>
               <button class="btn" id="btn-debug-give-currency" style="flex:1; font-size:10px; padding:4px;">+💷 £100</button>
             </div>
+            <div style="margin-top:4px; display:flex; gap:4px;">
+              <button class="btn" id="btn-debug-spawn-hydra" style="flex:1; font-size:10px; padding:4px; background:#4a1010; border-color:#a33;">🪸 Spawn Hydra</button>
+            </div>
             <div style="margin-top:6px; display:flex; flex-direction:column; gap:3px;">
               <div style="font-size:9px; color:var(--tx-lo); text-transform:uppercase; letter-spacing:1px; margin-bottom:2px;">Lock Conditions</div>
               <div style="display:flex; align-items:center; gap:4px;">
@@ -1769,6 +1815,15 @@
           </div>
           <span class="inv-count" id="inv-mutation-inhibitor-cnt">0</span>
           <button class="btn inv-use-btn" id="btn-use-mutation-inhibitor" disabled>Use</button>
+        </div>
+        <div class="inv-item">
+          <span class="inv-icon">🧴</span>
+          <div class="inv-info">
+            <span class="inv-name">Chemical Drop</span>
+            <span class="inv-desc">Instantly kills a Hydra on the active tank</span>
+          </div>
+          <span class="inv-count" id="inv-hydra-killer-cnt">0</span>
+          <button class="btn inv-use-btn" id="btn-use-hydra-killer" disabled>Use</button>
         </div>
         <div class="inv-item" style="border-top: 1px solid var(--brd-lo); margin-top: 4px; padding-top: 6px;">
           <span class="inv-icon">📦</span>

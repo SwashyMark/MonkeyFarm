@@ -43,6 +43,10 @@ const OFFLINE_CHUNK_MS  = 10_000;              // simulate in 10s chunks
 const SNAIL_COST           = 1500;
 const SNAIL_EAT_INTERVAL   = 30_000; // eat one corpse every 30s
 const SNAIL_EGG_CHANCE     = 0.10;   // 10% chance per eat to accidentally snag a live egg
+const HYDRA_HUNT_MIN       = 3_000;  // minimum ms between attacks
+const HYDRA_HUNT_MAX       = 5_000;  // maximum ms between attacks
+const HYDRA_SPAWN_CHANCE   = 0.00025;// per game-second (~66 min average between spawns)
+const HYDRA_HP             = 25;     // clicks required to kill
 
 // ── SCIENTIFIC GRANTS ─────────────────────────────────────────────────────────
 // type: 'snapshot'       — progress computed live from state
@@ -187,6 +191,7 @@ function claimGrant(id) {
   if (shellMult > 1) addNotification(`🐚 Shell Bounty: ${shellMult}× shells!`);
   addLog(`📋 Grant claimed: "${def.title}" — +£${cashAmt}${shellStr}`);
   addNotification(`📋 +£${cashAmt}${shellStr}`);
+  state.stats.grantsCompleted = (state.stats.grantsCompleted || 0) + 1;
   state.grants.active = state.grants.active.filter(g => g.id !== id);
   generateGrants(); // top back up to 3
   _grantsSig = '';
@@ -650,6 +655,30 @@ const MILESTONES_DEF = [
   { key: 'firstRareVariant',   emoji: '✨', name: 'Rare Discovery',       desc: 'Discover a rare colour variant.',              reward: '+100 XP, +1 ✨ Glowing Flakes',   progress: () => [['purple','C_BLU','C_TRANS','C_GOLD','C_BIO','C_VOID'].filter(k=>state.dex[k]?.discovered).length, 1] },
   { key: 'firstFunctionalGene',emoji: '🔍', name: 'Genetic Discovery',   desc: 'Discover a functional gene variant.',          reward: '+100 XP, +1 🔍 Magnifying Glass', progress: () => [['M_FAST','M_SLOW','H_SENS','H_IRON','L_FLY','L_ANC','filterFeeder'].filter(k=>state.dex[k]?.discovered).length, 1] },
   { key: 'firstMastery',       emoji: '⭐', name: 'First Mastery',        desc: 'Achieve mastery of any variant.',              reward: '+150 XP',                         progress: () => [Object.values(state.dex||{}).filter(e=>e.mastered).length, 1] },
+  { key: 'firstHydra',         emoji: '🪸', name: 'Hydra Slayer',          desc: 'Defeat a Hydra micro-predator.',               reward: '+150 XP, +1 🧴 Chemical Drop',    progress: () => [state.stats?.hydrasDefeated||0, 1] },
+  // Storage & trading
+  { key: 'firstEggStored',     emoji: '📦', name: 'Cold Storage',           desc: 'Store your first egg.',                        reward: '+50 XP',                          progress: () => [state.monkeys.some(m=>m.inStorage)?1:0, 1] },
+  { key: 'firstEggSold',       emoji: '💰', name: 'First Egg Sale',         desc: 'Sell a sea monkey egg.',                       reward: '+25 XP',                          progress: () => [state.milestones?.firstEggSold?1:0, 1] },
+  { key: 'firstBabySold',      emoji: '💰', name: 'Baby Broker',            desc: 'Sell your first baby sea monkey.',             reward: '+25 XP',                          progress: () => [state.milestones?.firstBabySold?1:0, 1] },
+  { key: 'firstJuvenileSold',  emoji: '💰', name: 'Juvenile Trade',         desc: 'Sell your first juvenile sea monkey.',         reward: '+50 XP',                          progress: () => [state.milestones?.firstJuvenileSold?1:0, 1] },
+  { key: 'firstAdultSold',     emoji: '💰', name: 'Adult Auction',          desc: 'Sell your first adult sea monkey.',            reward: '+75 XP',                          progress: () => [state.milestones?.firstAdultSold?1:0, 1] },
+  // Shop
+  { key: 'firstShopPurchase',  emoji: '🛒', name: 'First Purchase',         desc: 'Buy your first item from the shop.',           reward: '+25 XP',                          progress: () => [state.stats?.totalShopPurchases?1:0, 1] },
+  // Grants
+  { key: 'grants1',   emoji: '📋', name: 'Grant Recipient',       desc: 'Complete 1 scientific grant.',                 reward: '+50 XP',                          progress: () => [state.stats?.grantsCompleted||0, 1]   },
+  { key: 'grants5',   emoji: '📋', name: 'Active Researcher',     desc: 'Complete 5 scientific grants.',                reward: '+100 XP, +1 🥚 Egg Pack',         progress: () => [state.stats?.grantsCompleted||0, 5]   },
+  { key: 'grants10',  emoji: '📋', name: 'Senior Scientist',      desc: 'Complete 10 scientific grants.',               reward: '+200 XP, +1 🧪 Life Booster',     progress: () => [state.stats?.grantsCompleted||0, 10]  },
+  { key: 'grants25',  emoji: '📋', name: 'Principal Investigator',desc: 'Complete 25 scientific grants.',               reward: '+300 XP, +1 🧴 Chemical Drop',    progress: () => [state.stats?.grantsCompleted||0, 25]  },
+  { key: 'grants50',  emoji: '📋', name: 'Research Director',     desc: 'Complete 50 scientific grants.',               reward: '+500 XP, +1 ✨ Glowing Flakes',   progress: () => [state.stats?.grantsCompleted||0, 50]  },
+  { key: 'grants100', emoji: '📋', name: 'Nobel Laureate',        desc: 'Complete 100 scientific grants.',              reward: '+1,000 XP, +2 🥚 Egg Packs',      progress: () => [state.stats?.grantsCompleted||0, 100] },
+  // Skill tree
+  { key: 'skillTier1',      emoji: '🌿', name: 'First Skill',        desc: 'Unlock your first skill.',                     reward: '+50 XP',                          progress: () => [SKILL_TREE.some(b=>sk(b.nodes[0]?.id))?1:0, 1] },
+  { key: 'skillTier2',      emoji: '🌿', name: 'Skill Tier 2',       desc: 'Unlock any tier-2 skill.',                    reward: '+75 XP',                          progress: () => [SKILL_TREE.some(b=>sk(b.nodes[1]?.id))?1:0, 1] },
+  { key: 'skillTier3',      emoji: '🌿', name: 'Skill Tier 3',       desc: 'Unlock any tier-3 skill.',                    reward: '+100 XP',                         progress: () => [SKILL_TREE.some(b=>sk(b.nodes[2]?.id))?1:0, 1] },
+  { key: 'skillTier4',      emoji: '🌿', name: 'Skill Tier 4',       desc: 'Unlock any tier-4 skill.',                    reward: '+150 XP',                         progress: () => [SKILL_TREE.some(b=>sk(b.nodes[3]?.id))?1:0, 1] },
+  { key: 'skillTier5',      emoji: '🌿', name: 'Capstone Skill',     desc: 'Unlock any capstone skill.',                  reward: '+200 XP',                         progress: () => [SKILL_TREE.some(b=>sk(b.nodes[4]?.id))?1:0, 1] },
+  { key: 'skillFullBranch', emoji: '🌳', name: 'Completed Branch',   desc: 'Fully complete any one skill branch.',        reward: '+300 XP',                         progress: () => [SKILL_TREE.some(b=>b.nodes.every(n=>sk(n.id)))?1:0, 1] },
+  { key: 'skillAllUnlocked',emoji: '🏅', name: 'Master of All',      desc: 'Unlock every skill in the tree.',             reward: '+1,000 XP, +2 🧴 Chemical Drops', progress: () => { const t=SKILL_TREE.reduce((s,b)=>s+b.nodes.length,0); return [SKILL_TREE.reduce((s,b)=>s+b.nodes.filter(n=>sk(n.id)).length,0),t]; } },
 ];
 
 // ── AUDIO ENGINE ─────────────────────────────────────────────────────────────
@@ -708,6 +737,7 @@ const AudioEngine = (() => {
     feed:      (b, t) => { _sweep(400, 660, 'sine', t, 0.08, 0.20, b); },
     aerate:    (b, t) => { [0, 0.07, 0.14].forEach((d, i) => _sweep(360 + i * 60, 700 + i * 60, 'sine', t + d, 0.07, 0.18, b)); },
     clean:     (b, t) => { _sweep(620, 180, 'triangle', t, 0.22, 0.26, b); },
+    alarm:     (b, t) => { [0, 0.22, 0.44].forEach(d => _sweep(480, 160, 'sawtooth', t + d, 0.38, 0.18, b)); },
   };
 
   function play(name) {
@@ -967,6 +997,7 @@ const DEFAULT_TANK = {
   mutationInhibitorUntil: 0,
   snail: false,
   snailLastEat: null,
+  hydra: null,   // null | { hp, lastHunt, x } — active hydra on the glass
 };
 
 const DEFAULT_STATE = {
@@ -991,6 +1022,9 @@ const DEFAULT_STATE = {
     totalMatingEvents: 0,
     totalGenerations: 1,
     peakPopulation: 0,
+    hydrasDefeated: 0,
+    grantsCompleted: 0,
+    totalShopPurchases: 0,
   },
   milestones: {},
   log: [],
@@ -1024,6 +1058,7 @@ const DEFAULT_STATE = {
     glowingFlakes: 0,
     magnifyingGlass: 0,
     mutationInhibitor: 0,
+    hydraKiller: 0,
   },
   offlineProtectionExpiry: 0,
   gracePeriodUntil: 0,
@@ -1285,6 +1320,12 @@ function sellMonkey(id) {
   if (!m || !m.alive) return;
   const price = calcSellPrice(m);
   state.currency += price;
+  // Sell-stage milestones (trigger before monkey is removed)
+  const ms = state.milestones;
+  if (m.stage === 'egg'      && !ms.firstEggSold)      { ms.firstEggSold      = true; addXP(25);  addLog('💰 Milestone: First Egg Sale!');    addNotification('💰 Milestone: First Egg Sale!');    AudioEngine.play('levelup'); }
+  if (m.stage === 'baby'     && !ms.firstBabySold)     { ms.firstBabySold     = true; addXP(25);  addLog('💰 Milestone: Baby Broker!');       addNotification('💰 Milestone: Baby Broker!');       AudioEngine.play('levelup'); }
+  if (m.stage === 'juvenile' && !ms.firstJuvenileSold) { ms.firstJuvenileSold = true; addXP(50);  addLog('💰 Milestone: Juvenile Trade!');    addNotification('💰 Milestone: Juvenile Trade!');    AudioEngine.play('levelup'); }
+  if (m.stage === 'adult'    && !ms.firstAdultSold)    { ms.firstAdultSold    = true; addXP(75);  addLog('💰 Milestone: Adult Auction!');     addNotification('💰 Milestone: Adult Auction!');     AudioEngine.play('levelup'); }
   state.monkeys = state.monkeys.filter(m2 => m2.id !== id);
   if (monkeyEls[id]) { monkeyEls[id].remove(); delete monkeyEls[id]; }
   _popSignature = '';
@@ -1319,6 +1360,7 @@ const SHOP_ITEMS = {
   invBoosterEggPack:   { label: '🥚 Booster Egg Pack',   desc: 'Spawns 5 bonus eggs into the active tank.',         cost: 75,  type: 'inventory', invKey: 'boosterEggPack'   },
   invGlowingFlakes:    { label: '✨ Glowing Flakes',     desc: '10× mutation rate for next birth (parents take damage).', cost: 250, type: 'inventory', invKey: 'glowingFlakes' },
   invMutInhibitor:     { label: '🧪 Mutation Inhibitor', desc: 'Stops mutations in active tank for 10 minutes.',    cost: 175, type: 'inventory', invKey: 'mutationInhibitor' },
+  invHydraKiller:      { label: '🧴 Chemical Drop',      desc: 'Instantly kills a Hydra lurking on any tank glass.', cost: 800, type: 'inventory', invKey: 'hydraKiller'      },
 };
 
 const OFFLINE_PROT_BLOCK  = 6 * 60 * 60 * 1000; // 6 hours per block
@@ -1338,6 +1380,7 @@ function buyShopItem(key) {
     if (state.currency < effectiveCost(key)) { addNotification('Not enough funds!'); return; }
     state.currency -= effectiveCost(key);
     state.inventory[item.invKey] = (state.inventory[item.invKey] || 0) + 1;
+    state.stats.totalShopPurchases = (state.stats.totalShopPurchases || 0) + 1;
     addLog(`🛒 Purchased ${item.label}.`);
     saveState();
     renderShop();
@@ -1350,6 +1393,7 @@ function buyShopItem(key) {
     if (state.currency < effectiveCost(key)) { addNotification('Not enough funds!'); return; }
     state.currency -= effectiveCost(key);
     state.shop[key] = true;
+    state.stats.totalShopPurchases = (state.stats.totalShopPurchases || 0) + 1;
     addLog(`🛒 Purchased ${item.label}.`);
     saveState();
     renderShop();
@@ -1380,6 +1424,7 @@ function buyShopItem(key) {
     addLog(`🥚 Egg Surge active for 1h — doubled egg counts!`);
   }
 
+  state.stats.totalShopPurchases = (state.stats.totalShopPurchases || 0) + 1;
   saveState();
   renderShop();
 }
@@ -1434,6 +1479,21 @@ function buySnail(tankId) {
   saveState();
 }
 
+function useHydraKiller(tankId) {
+  const tank = state.tanks.find(t => t.id === tankId);
+  if (!tank) return;
+  if (!tank.hydra) { addNotification('No hydra in that tank!'); return; }
+  if (!(state.inventory.hydraKiller > 0)) { addNotification('No Chemical Drops in stock!'); return; }
+  state.inventory.hydraKiller--;
+  tank.hydra = null;
+  _tmSig = '';
+  state.stats.hydrasDefeated = (state.stats.hydrasDefeated || 0) + 1;
+  addLog(`🧴 Chemical Drop used in ${tank.name} — Hydra eliminated!`, null, tank.id);
+  addNotification('🪸 Hydra destroyed!');
+  AudioEngine.play('grant');
+  saveState();
+}
+
 function fmtProtRemaining() {
   const rem = Math.max(0, (state.offlineProtectionExpiry || 0) - Date.now());
   if (!rem) return 'None';
@@ -1467,7 +1527,7 @@ function renderShop() {
   const sig = [state.currency, protRem, rationRem, waterRem, eggSurgeRem,
     state.shop.autoFeeder, state.shop.mutationCatalyst,
     state.inventory.lifeBooster, state.inventory.boosterEggPack,
-    state.inventory.glowingFlakes, state.inventory.mutationInhibitor,
+    state.inventory.glowingFlakes, state.inventory.mutationInhibitor, state.inventory.hydraKiller,
     graceRem > 0 ? Math.floor(graceRem / 5) : 0].join('|');
   if (sig === _shopSig) return;
   _shopSig = sig;
@@ -1532,7 +1592,7 @@ function renderShop() {
     ${permRow('autoFeeder')}
     ${permRow('mutationCatalyst')}
     <div class="shop-section-header">🎒 Consumables</div>
-    ${['invLifeBooster','invBoosterEggPack','invGlowingFlakes','invMutInhibitor'].map(key => {
+    ${['invLifeBooster','invBoosterEggPack','invGlowingFlakes','invMutInhibitor','invHydraKiller'].map(key => {
       const item = SHOP_ITEMS[key];
       const stock = state.inventory[item.invKey] || 0;
       return `<div class="shop-item">
@@ -1602,9 +1662,9 @@ function killMonkey(monkey, cause) {
   state.stats.totalDied++;
   if (cause === 'old age') addXP(15);
   addLog(`💀 ${monkey.name} died (${cause})`, `💀 died (${cause})`, monkey.tankId);
-  AudioEngine.play('death');
+  if (cause != 'old age') AudioEngine.play('death');
   const condRow = document.querySelector(`[data-cond-tank="${monkey.tankId}"]`);
-  if (condRow) {
+  if (condRow && cause !== 'old age') {
     condRow.classList.remove('tank-row-flash');
     void condRow.offsetWidth; // restart animation if row is already flashing
     condRow.classList.add('tank-row-flash');
@@ -1887,6 +1947,38 @@ function gameTick(dtMs) {
       }
     }
 
+    // --- Hydra: rare spawn, swims and hunts sea monkeys ---
+    const alivePrey = state.monkeys.filter(m => m.tankId === tank.id && m.alive && !m.inStorage);
+    if (!tank.hydra && alivePrey.length > 0) {
+      const spawnProb = HYDRA_SPAWN_CHANCE * dtSec * (debugMode ? debugSpeed : 1);
+      if (Math.random() < spawnProb) {
+        tank.hydra = { hp: HYDRA_HP, lastHunt: Date.now(), huntInterval: HYDRA_HUNT_MIN + Math.random() * (HYDRA_HUNT_MAX - HYDRA_HUNT_MIN) };
+        _tmSig = '';
+        AudioEngine.play('alarm');
+        addLog(`🪸 A Hydra appeared in ${tank.name}! Click it to fight it off!`, null, tank.id);
+        addNotification(`🪸 Hydra in ${tank.name}!`);
+      }
+    }
+    if (tank.hydra) {
+      if (!tank.hydra.lastHunt)    tank.hydra.lastHunt    = Date.now();
+      if (!tank.hydra.huntInterval) tank.hydra.huntInterval = HYDRA_HUNT_MIN;
+      const hydraElapsed = (Date.now() - tank.hydra.lastHunt) * (debugMode ? debugSpeed : 1);
+      if (hydraElapsed >= tank.hydra.huntInterval) {
+        tank.hydra.lastHunt    = Date.now();
+        tank.hydra.huntInterval = HYDRA_HUNT_MIN + Math.random() * (HYDRA_HUNT_MAX - HYDRA_HUNT_MIN);
+        // Prefer eggs (most vulnerable), then babies, then any alive monkey
+        const prey =
+          state.monkeys.find(m => m.tankId === tank.id && m.alive && !m.inStorage && m.stage === 'egg') ||
+          state.monkeys.find(m => m.tankId === tank.id && m.alive && !m.inStorage && m.stage === 'baby') ||
+          state.monkeys.find(m => m.tankId === tank.id && m.alive && !m.inStorage);
+        if (prey) {
+          killMonkey(prey, 'hydra');
+          addLog(`🪸 The Hydra devoured ${prey.name} in ${tank.name}!`, null, tank.id);
+          addNotification(`🪸 Hydra struck in ${tank.name}!`);
+        }
+      }
+    }
+
     // --- Auto-remove corpses after 5 minutes, penalise cleanliness ---
     const CORPSE_TTL = 5 * 60 * 1000 * (skOn('preservatives') ? 1.2 : 1);
     const now = Date.now();
@@ -2045,7 +2137,6 @@ function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   state.stats.totalMatingEvents++;
   addXP(5);
   addLog(`💕 ${female.name} & ${mate.name} mated!`, '💕 mated!', female.tankId);
-  AudioEngine.play('mate');
 }
 
 function processBirths(aliveMonkeys, tank) {
@@ -2108,7 +2199,6 @@ function processBirths(aliveMonkeys, tank) {
       if (traits.length) tag += '+' + traits.join('+');
       addXP(10);
       addLog(`🥚 ${m.name} laid egg: ${baby.name} [${tag}]!`, '🥚 egg laid!', tank.id);
-      AudioEngine.play('birth');
     }
     if (usedFlakes) addLog('✨ Glowing Flakes boosted mutation rates for this birth! (parents took damage)', null, tank.id);
   }
@@ -2305,6 +2395,68 @@ function checkMilestones() {
     ms.firstMastery = true;
     addXP(150);
     addLog('⭐ Milestone: First mastery unlocked!');
+  }
+
+  // First hydra defeated
+  if (!ms.firstHydra && (state.stats.hydrasDefeated || 0) >= 1) {
+    ms.firstHydra = true;
+    state.inventory.hydraKiller++;
+    addXP(150);
+    addLog('🪸 Milestone: Hydra Slayer! You defeated your first Hydra! +1 🧴 Chemical Drop');
+    addNotification('🪸 Milestone: Hydra Slayer!');
+  }
+
+  // Convenience helper: set flag, run reward fn, log/notify
+  const award = (key, notify, logMsg, rewardFn) => {
+    if (ms[key]) return;
+    ms[key] = true;
+    rewardFn();
+    addLog(logMsg);
+    addNotification(notify);
+    AudioEngine.play('levelup');
+  };
+
+  // Egg storage
+  if (!ms.firstEggStored && state.monkeys.some(m => m.inStorage)) {
+    award('firstEggStored', '📦 Milestone: Cold Storage!',
+      '📦 Milestone: Cold Storage — first egg stored! +50 XP',
+      () => addXP(50));
+  }
+
+  // Shop
+  if (!ms.firstShopPurchase && (state.stats.totalShopPurchases || 0) >= 1) {
+    award('firstShopPurchase', '🛒 Milestone: First Purchase!',
+      '🛒 Milestone: First Purchase — welcome to the shop! +25 XP',
+      () => addXP(25));
+  }
+
+  // Grants
+  const gc = state.stats.grantsCompleted || 0;
+  if (!ms.grants1   && gc >=   1) award('grants1',   '📋 Milestone: Grant Recipient!',        '📋 Milestone: Grant Recipient — 1 grant done! +50 XP',                              () => addXP(50));
+  if (!ms.grants5   && gc >=   5) award('grants5',   '📋 Milestone: Active Researcher!',      '📋 Milestone: Active Researcher — 5 grants! +100 XP, +1 🥚 Egg Pack',              () => { addXP(100); state.inventory.boosterEggPack++; });
+  if (!ms.grants10  && gc >=  10) award('grants10',  '📋 Milestone: Senior Scientist!',       '📋 Milestone: Senior Scientist — 10 grants! +200 XP, +1 🧪 Life Booster',          () => { addXP(200); state.inventory.lifeBooster++; });
+  if (!ms.grants25  && gc >=  25) award('grants25',  '📋 Milestone: Principal Investigator!', '📋 Milestone: Principal Investigator — 25 grants! +300 XP, +1 🧴 Chemical Drop',    () => { addXP(300); state.inventory.hydraKiller++; });
+  if (!ms.grants50  && gc >=  50) award('grants50',  '📋 Milestone: Research Director!',      '📋 Milestone: Research Director — 50 grants! +500 XP, +1 ✨ Glowing Flakes',        () => { addXP(500); state.inventory.glowingFlakes++; });
+  if (!ms.grants100 && gc >= 100) award('grants100', '📋 Milestone: Nobel Laureate!',         '📋 Milestone: Nobel Laureate — 100 grants! +1,000 XP, +2 🥚 Egg Packs',            () => { addXP(1000); state.inventory.boosterEggPack += 2; });
+
+  // Skill tree tiers
+  const tier = i => SKILL_TREE.some(b => sk(b.nodes[i]?.id));
+  if (!ms.skillTier1 && tier(0)) award('skillTier1', '🌿 Milestone: First Skill!',        '🌿 Milestone: First Skill unlocked! +50 XP',            () => addXP(50));
+  if (!ms.skillTier2 && tier(1)) award('skillTier2', '🌿 Milestone: Skill Tier 2!',        '🌿 Milestone: Tier-2 skill unlocked! +75 XP',           () => addXP(75));
+  if (!ms.skillTier3 && tier(2)) award('skillTier3', '🌿 Milestone: Skill Tier 3!',        '🌿 Milestone: Tier-3 skill unlocked! +100 XP',          () => addXP(100));
+  if (!ms.skillTier4 && tier(3)) award('skillTier4', '🌿 Milestone: Skill Tier 4!',        '🌿 Milestone: Tier-4 skill unlocked! +150 XP',          () => addXP(150));
+  if (!ms.skillTier5 && tier(4)) award('skillTier5', '🌿 Milestone: Capstone Skill!',      '🌿 Milestone: Capstone skill unlocked! +200 XP',        () => addXP(200));
+
+  // Skill tree branch / all
+  if (!ms.skillFullBranch && SKILL_TREE.some(b => b.nodes.every(n => sk(n.id)))) {
+    award('skillFullBranch', '🌳 Milestone: Completed Branch!',
+      '🌳 Milestone: Completed Branch — all 5 nodes in a branch! +300 XP',
+      () => addXP(300));
+  }
+  if (!ms.skillAllUnlocked && SKILL_TREE.every(b => b.nodes.every(n => sk(n.id)))) {
+    award('skillAllUnlocked', '🏅 Milestone: Master of All!',
+      '🏅 Milestone: Master of All — every skill unlocked! +1,000 XP, +2 🧴 Chemical Drops',
+      () => { addXP(1000); state.inventory.hydraKiller += 2; });
   }
 }
 
@@ -2923,6 +3075,88 @@ function renderSnail() {
   snailEl.querySelector('.snail-tooltip').style.transform = `translateX(-50%) scaleX(${facing})`;
 }
 
+function renderHydra() {
+  const container = document.getElementById('monkey-container');
+  if (!container) return;
+  const tank = activeTank();
+
+  // Remove element if no hydra or tank switched
+  if (!tank || !tank.hydra || tank.id !== _hydraTankId) {
+    if (hydraEl) { hydraEl.remove(); hydraEl = null; }
+    _hydraTankId = -1;
+    if (!tank || !tank.hydra) return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  const W = rect.width  || 560;
+  const H = rect.height || 462;
+
+  // Initialise swimming position for this tank
+  if (!hydraPos[tank.id]) {
+    hydraPos[tank.id] = {
+      x:  W * (0.2 + Math.random() * 0.6),
+      y:  H * (0.2 + Math.random() * 0.5),
+      vx: (Math.random() < 0.5 ? 1 : -1) * (0.7 + Math.random() * 0.6),
+      vy: (Math.random() < 0.5 ? 1 : -1) * (0.35 + Math.random() * 0.35),
+    };
+  }
+  const pos = hydraPos[tank.id];
+  pos.x += pos.vx;
+  pos.y += pos.vy;
+  // Occasional random direction nudge
+  if (Math.random() < 0.008) pos.vx = (Math.random() < 0.5 ? 1 : -1) * (0.7 + Math.random() * 0.6);
+  if (Math.random() < 0.008) pos.vy = (Math.random() < 0.5 ? 1 : -1) * (0.35 + Math.random() * 0.35);
+  // Bounce off walls (leave room for 44px emoji + 40px HP bar)
+  if (pos.x < 5)       { pos.x = 5;       pos.vx =  Math.abs(pos.vx); }
+  if (pos.x > W - 49)  { pos.x = W - 49;  pos.vx = -Math.abs(pos.vx); }
+  if (pos.y < 5)       { pos.y = 5;        pos.vy =  Math.abs(pos.vy); }
+  if (pos.y > H - 80)  { pos.y = H - 80;   pos.vy = -Math.abs(pos.vy); }
+
+  if (!hydraEl) {
+    hydraEl = document.createElement('div');
+    hydraEl.className = 'hydra-creature';
+    hydraEl.innerHTML =
+      `<div class="hydra-tooltip">⚠️ Hydra! Click to fight back!<br>Eats a sea monkey every ${HYDRA_HUNT_MIN / 1000}–${HYDRA_HUNT_MAX / 1000}s</div>` +
+      `<div class="hydra-body">🪸</div>` +
+      `<div class="hydra-hp-wrap"><div class="hydra-hp-fill"></div></div>` +
+      `<div class="hydra-hp-text">${tank.hydra.hp}</div>`;
+    hydraEl.addEventListener('click', () => {
+      const t = activeTank();
+      if (!t || !t.hydra) return;
+      t.hydra.hp--;
+      AudioEngine.play('sell');
+      if (t.hydra.hp <= 0) {
+        t.hydra = null;
+        _hydraTankId = -1;
+        _tmSig = '';
+        state.stats.hydrasDefeated = (state.stats.hydrasDefeated || 0) + 1;
+        addLog(`🪸 The Hydra in ${t.name} was beaten back!`, null, t.id);
+        addNotification('🪸 Hydra defeated!');
+        AudioEngine.play('grant');
+        saveState();
+      }
+    });
+    container.appendChild(hydraEl);
+    _hydraTankId = tank.id;
+  }
+
+  // Update HP bar and label each frame
+  const fill = hydraEl.querySelector('.hydra-hp-fill');
+  if (fill) fill.style.width = `${(tank.hydra.hp / HYDRA_HP * 100).toFixed(1)}%`;
+  const hpText = hydraEl.querySelector('.hydra-hp-text');
+  if (hpText) hpText.textContent = tank.hydra.hp;
+
+  // Flip to face direction of travel; counter-flip text children so they stay readable
+  hydraEl.style.transform = `translate(${pos.x}px, ${pos.y}px) scaleX(${pos.vx >= 0 ? 1 : -1})`;
+  const counterFlip = `scaleX(${pos.vx >= 0 ? 1 : -1})`;
+  const tip = hydraEl.querySelector('.hydra-tooltip');
+  if (tip) tip.style.transform = `translateX(-50%) ${counterFlip}`;
+  const hpWrap = hydraEl.querySelector('.hydra-hp-wrap');
+  if (hpWrap) hpWrap.style.transform = counterFlip;
+  const hpTxt = hydraEl.querySelector('.hydra-hp-text');
+  if (hpTxt) hpTxt.style.transform = counterFlip;
+}
+
 function renderMolts() {
   const container = document.getElementById('monkey-container');
   if (!state.molts) state.molts = [];
@@ -2961,7 +3195,6 @@ function renderMolts() {
           state.currency = (state.currency || 0) + reward;
           addXP(2);
           addNotification(`£${reward} collected!${viralMult > 1 ? ' 📣' : ''}`);
-          AudioEngine.play('molt');
         }
         state.molts = state.molts.filter(mo => mo.id !== molt.id);
       });
@@ -3037,6 +3270,7 @@ function renderAll() {
   renderPopulationCounts();
   renderMonkeys();
   renderSnail();
+  renderHydra();
   renderMolts();
   renderLifeSupport();
   renderInventory();
@@ -3236,6 +3470,9 @@ const monkeyEls = {};
 let   snailEl = null;       // single DOM element for the snail (active tank only)
 let   _snailTankId = -1;    // which tank snailEl belongs to
 const snailPos = {};        // tankId → { x, vx } — visual position, not saved
+let   hydraEl = null;       // single DOM element for the hydra (active tank only)
+let   _hydraTankId = -1;    // which tank hydraEl belongs to
+const hydraPos = {};        // tankId → { x, y, vx, vy } — visual position, not saved
 
 function renderMonkeys() {
   const container = document.getElementById('monkey-container');
@@ -3443,7 +3680,7 @@ function renderTankManager() {
     const alive = state.monkeys.filter(m => m.alive && m.tankId === t.id && !m.inStorage);
     const dead  = state.monkeys.filter(m => !m.alive && m.tankId === t.id).length;
     const stageCounts = ['egg','baby','juvenile','adult'].map(s => alive.filter(m => m.stage === s).length).join(',');
-    return `${t.id}:${t.name}:${t.aeration.level}:${t.skimmer.level}:${t.feeder.level}:${stageCounts}:${dead}:${t.id === state.activeTankId ? 1 : 0}:${t.popLevel ?? 0}:${t.eggSkimmer ? 1 : 0}:${t.eggSkimmerActive ? 1 : 0}:${state.currency}`;
+    return `${t.id}:${t.name}:${t.aeration.level}:${t.skimmer.level}:${t.feeder.level}:${stageCounts}:${dead}:${t.id === state.activeTankId ? 1 : 0}:${t.popLevel ?? 0}:${t.eggSkimmer ? 1 : 0}:${t.eggSkimmerActive ? 1 : 0}:${state.currency}:${t.hydra ? t.hydra.hp : 0}:${state.inventory.hydraKiller}`;
   }).join('|');
 
   const list = document.getElementById('tank-manager-list');
@@ -3580,6 +3817,13 @@ function renderTankManager() {
               ? `<span class="tm-cap-desc">🐌 Snail Companion</span><span class="tm-cap-badge" style="font-size:10px;color:var(--tx-lo);">Installed</span>`
               : `<span class="tm-cap-desc">🐌 Snail — eats corpses</span>
                  <button class="tm-cap-btn" data-buy-snail="${t.id}" ${state.currency < SNAIL_COST ? 'disabled' : ''}>£${SNAIL_COST.toLocaleString()}</button>`
+            }
+            ${t.hydra
+              ? `<span class="tm-cap-desc tm-hydra-alert">🪸 Hydra! (${t.hydra.hp} HP)</span>
+                 <button class="tm-cap-btn tm-hydra-kill-btn" data-use-hydra-killer="${t.id}" ${!state.inventory.hydraKiller ? 'disabled' : ''}>
+                   🧴 Kill${state.inventory.hydraKiller ? ` ×${state.inventory.hydraKiller}` : ' (none)'}
+                 </button>`
+              : ''
             }
           </div>
         </div>
@@ -3858,6 +4102,10 @@ function renderInventory() {
   } else {
     inhibBadge.style.display = 'none';
   }
+
+  const activeHasHydra = !!(activeTank()?.hydra);
+  document.getElementById('inv-hydra-killer-cnt').textContent = inv.hydraKiller.toLocaleString();
+  document.getElementById('btn-use-hydra-killer').disabled = inv.hydraKiller <= 0 || !activeHasHydra;
 
   const storedEggCount = state.monkeys.filter(m => m.inStorage).length;
   document.getElementById('inv-egg-storage-cnt').textContent = storedEggCount.toLocaleString();
@@ -4284,6 +4532,10 @@ function setupEventListeners() {
   document.getElementById('btn-use-egg-pack').addEventListener('click', useBoosterEggPack);
   document.getElementById('btn-use-glowing-flakes').addEventListener('click', useGlowingFlakes);
   document.getElementById('btn-toggle-magnifying-glass').addEventListener('click', toggleMagnifyingGlass);
+  document.getElementById('btn-use-hydra-killer').addEventListener('click', () => {
+    useHydraKiller(state.activeTankId);
+  });
+
   document.getElementById('btn-use-mutation-inhibitor').addEventListener('click', () => {
     const t = activeTank();
     if (!t || state.inventory.mutationInhibitor <= 0) return;
@@ -4447,7 +4699,6 @@ function setupEventListeners() {
   sfxVolSlider.addEventListener('input', () => {
     AudioEngine.setSfxVol(parseFloat(sfxVolSlider.value));
     sfxVolPct.textContent = Math.round(sfxVolSlider.value * 100) + '%';
-    AudioEngine.play('molt'); // preview the new SFX level
   });
 
   document.getElementById('fps-stress-pop').addEventListener('change', () => {
@@ -4486,6 +4737,7 @@ function setupEventListeners() {
         if (t.feeder.startedAt   != null) t.feeder.startedAt   += pauseDuration;
         if (t.purifyStartTime    != null) t.purifyStartTime    += pauseDuration;
         if (t.snailLastEat       != null) t.snailLastEat       += pauseDuration;
+        if (t.hydra?.lastHunt != null) t.hydra.lastHunt += pauseDuration;
       }
       for (const m of state.monkeys) {
         if (m.stageStartTime != null) m.stageStartTime += pauseDuration;
@@ -4594,6 +4846,17 @@ function setupEventListeners() {
     addNotification('💷 +£100');
   });
 
+  document.getElementById('btn-debug-spawn-hydra').addEventListener('click', () => {
+    const tank = activeTank();
+    if (!tank || !tank.eggsAdded) { addNotification('No active tank with life!'); return; }
+    if (tank.hydra) { addNotification('Hydra already present!'); return; }
+    tank.hydra = { hp: HYDRA_HP, lastHunt: Date.now(), huntInterval: HYDRA_HUNT_MIN + Math.random() * (HYDRA_HUNT_MAX - HYDRA_HUNT_MIN) };
+    _tmSig = '';
+    AudioEngine.play('alarm');
+    addLog(`🪸 [DEBUG] Hydra spawned in ${tank.name}.`, null, tank.id);
+    addNotification(`🪸 Hydra spawned!`);
+  });
+
   // Debug condition locks
   const lsLockVals = ['normal', '0', '1', '2', '3', '4', '5'];
   const lockConfigs = [
@@ -4654,6 +4917,8 @@ function setupEventListeners() {
     if (toggleSkimmerBtn) { toggleEggSkimmer(Number(toggleSkimmerBtn.dataset.toggleSkimmer)); return; }
     const buySnailBtn = e.target.closest('[data-buy-snail]');
     if (buySnailBtn) { buySnail(Number(buySnailBtn.dataset.buySnail)); return; }
+    const useHydraKillerBtn = e.target.closest('[data-use-hydra-killer]');
+    if (useHydraKillerBtn) { useHydraKiller(Number(useHydraKillerBtn.dataset.useHydraKiller)); return; }
     // Switch button
     const switchBtn = e.target.closest('[data-tm-switch]');
     if (switchBtn) {
