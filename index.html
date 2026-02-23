@@ -1208,6 +1208,35 @@
         overflow-y: auto; padding: 36px 12px 12px;
       }
       #tank-manager-view.active { display: flex; }
+      /* ── STATS VIEW ── */
+      #stats-view {
+        position: absolute; inset: 0; z-index: 5;
+        background: var(--bg-tank);
+        display: none; flex-direction: column;
+        overflow-y: auto; padding: 36px 16px 16px;
+      }
+      #stats-view.active { display: flex; }
+      #stats-view-title {
+        font-size: 14px; font-weight: bold; color: var(--tx-hi);
+        border-bottom: 1px solid var(--brd-lo); padding-bottom: 8px; margin-bottom: 12px;
+        flex-shrink: 0;
+      }
+      .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+      .stat-card {
+        background: var(--bg-panel); border: 1px solid var(--brd-lo); border-radius: 8px;
+        padding: 12px; display: flex; flex-direction: column; gap: 6px;
+      }
+      .stat-card-title { font-size: 11px; font-weight: bold; color: var(--tx-lo); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--brd-lo); padding-bottom: 4px; }
+      .stat-row { display: flex; justify-content: space-between; font-size: 11px; }
+      .stat-label { color: var(--tx-mid); }
+      .stat-val { color: var(--tx-hi); font-weight: bold; font-variant-numeric: tabular-nums; }
+      #tank-manager-view {
+        position: absolute; inset: 0; z-index: 5;
+        background: var(--bg-tank);
+        display: none; flex-direction: column;
+        overflow-y: auto; padding: 36px 12px 12px;
+      }
+      #tank-manager-view.active { display: flex; }
       #tank-manager-title {
         font-size: 12px; font-weight: bold; color: var(--tx-hi);
         border-bottom: 1px solid var(--brd-lo); padding-bottom: 8px; margin-bottom: 10px;
@@ -1917,6 +1946,7 @@
         <button class="tank-tab active" id="tab-tank">🌊 Tank</button>
         <button class="tank-tab" id="tab-life-support">⚙️ Life Support</button>
         <button class="tank-tab" id="tab-population">🦐 Population</button>
+        <button class="tank-tab" id="tab-stats">📊 Facts</button>
       </div>
       <!-- hidden anchor so switchTankTab can toggle active class on it -->
       <button id="tab-tank-manager" style="display:none"></button>
@@ -1941,6 +1971,10 @@
           </div>
         </div>
         <div id="population-list"></div>
+      </div>
+      <div id="stats-view">
+        <div id="stats-view-title">📊 Interesting Facts</div>
+        <div class="stats-grid" id="stats-grid"></div>
       </div>
       <div id="tank-overlay">
         <div id="overlay-emoji">🌊</div>

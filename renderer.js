@@ -1129,8 +1129,12 @@ const DEFAULT_STATE = {
     totalGenerations: 1,
     peakPopulation: 0,
     hydrasDefeated: 0,
+    hydrasSpawned: 0,
+    totalHydraDamageDealt: 0,
     grantsCompleted: 0,
     totalShopPurchases: 0,
+    invUsed: { lifeBooster: 0, boosterEggPack: 0, glowingFlakes: 0, magnifyingGlass: 0, mutationInhibitor: 0, hydraKiller: 0 },
+    accountCreatedAt: null,
   },
   milestones: {},
   log: [],
@@ -1613,6 +1617,7 @@ function useHydraKiller(tankId) {
   if (!tank.hydra) { addNotification('No hydra in that tank!'); return; }
   if (!(state.inventory.hydraKiller > 0)) { addNotification('No Chemical Drops in stock!'); return; }
   state.inventory.hydraKiller--;
+  state.stats.invUsed.hydraKiller = (state.stats.invUsed.hydraKiller || 0) + 1;
   tank.hydra = null;
   _tmSig = '';
   state.stats.hydrasDefeated = (state.stats.hydrasDefeated || 0) + 1;
@@ -2081,6 +2086,7 @@ function gameTick(dtMs) {
       const spawnProb = HYDRA_SPAWN_CHANCE * dtSec * (debugMode ? debugSpeed : 1);
       if (Math.random() < spawnProb) {
         tank.hydra = { hp: HYDRA_HP, lastHunt: Date.now(), huntInterval: HYDRA_HUNT_MIN + Math.random() * (HYDRA_HUNT_MAX - HYDRA_HUNT_MIN) };
+        state.stats.hydrasSpawned = (state.stats.hydrasSpawned || 0) + 1;
         _tmSig = '';
         AudioEngine.play('alarm');
         addLog(`🪸 A Hydra appeared in ${tank.name}! Click it to fight it off!`, null, tank.id);
@@ -3280,6 +3286,7 @@ function renderHydra() {
       const t = activeTank();
       if (!t || !t.hydra) return;
       t.hydra.hp--;
+      state.stats.totalHydraDamageDealt = (state.stats.totalHydraDamageDealt || 0) + 1;
       AudioEngine.play('sell');
       if (t.hydra.hp <= 0) {
         t.hydra = null;
@@ -3825,6 +3832,103 @@ function renderMonkeys() {
   }
 }
 
+function renderStats() {
+  const fmtTime = (ms) => {
+    if (!ms) return '—';
+    const days = Math.floor(ms / 86400000);
+    const hours = Math.floor((ms % 86400000) / 3600000);
+    const mins = Math.floor((ms % 3600000) / 60000);
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+  };
+  const fmtNum = (n) => (n || 0).toLocaleString();
+
+  const now = Date.now();
+  const accountAgems = state.stats.accountCreatedAt ? now - state.stats.accountCreatedAt : 0;
+  const playTimeMs = state.playTimeMs || 0;
+  const offlineTimeMs = state.totalOfflineMs || 0;
+
+  // Count current population by stage
+  const eggs = state.monkeys.filter(m => m.stage === 'egg' && m.alive).length;
+  const babies = state.monkeys.filter(m => m.stage === 'baby' && m.alive).length;
+  const juveniles = state.monkeys.filter(m => m.stage === 'juvenile' && m.alive).length;
+  const adults = state.monkeys.filter(m => m.stage === 'adult' && m.alive).length;
+
+  const cards = [
+    {
+      title: '👤 Account',
+      rows: [
+        ['Account Age', fmtTime(accountAgems)],
+        ['Created', state.stats.accountCreatedAt ? new Date(state.stats.accountCreatedAt).toLocaleDateString() : '—'],
+        ['Play Time', fmtTime(playTimeMs)],
+        ['Offline Time', fmtTime(offlineTimeMs)],
+      ]
+    },
+    {
+      title: '🦐 Population',
+      rows: [
+        ['Current Pop', fmtNum(eggs + babies + juveniles + adults)],
+        ['Eggs', fmtNum(eggs)],
+        ['Babies', fmtNum(babies)],
+        ['Juveniles', fmtNum(juveniles)],
+        ['Adults', fmtNum(adults)],
+        ['Peak Pop', fmtNum(state.stats.peakPopulation)],
+      ]
+    },
+    {
+      title: '🥚 Reproduction',
+      rows: [
+        ['Total Births', fmtNum(state.stats.totalBorn)],
+        ['Total Deaths', fmtNum(state.stats.totalDied)],
+        ['Generations', fmtNum(state.stats.totalGenerations)],
+        ['Breeding Events', fmtNum(state.stats.totalMatingEvents)],
+      ]
+    },
+    {
+      title: '🪸 Hydra Stats',
+      rows: [
+        ['Spawned', fmtNum(state.stats.hydrasSpawned)],
+        ['Defeated', fmtNum(state.stats.hydrasDefeated)],
+        ['Total Damage', fmtNum(state.stats.totalHydraDamageDealt)],
+        ['Avg Damage/Kill', state.stats.hydrasDefeated > 0 ? fmtNum(Math.round(state.stats.totalHydraDamageDealt / state.stats.hydrasDefeated)) : '—'],
+      ]
+    },
+    {
+      title: '📋 Grants',
+      rows: [
+        ['Completed', fmtNum(state.stats.grantsCompleted)],
+        ['Shop Purchases', fmtNum(state.stats.totalShopPurchases)],
+      ]
+    },
+    {
+      title: '📦 Inventory Used',
+      rows: [
+        ['Life Boosters', fmtNum(state.stats.invUsed?.lifeBooster)],
+        ['Egg Packs', fmtNum(state.stats.invUsed?.boosterEggPack)],
+        ['Glowing Flakes', fmtNum(state.stats.invUsed?.glowingFlakes)],
+        ['Magnifying Glass', fmtNum(state.stats.invUsed?.magnifyingGlass)],
+        ['Mutation Inhibitors', fmtNum(state.stats.invUsed?.mutationInhibitor)],
+        ['Chemical Drops', fmtNum(state.stats.invUsed?.hydraKiller)],
+      ]
+    },
+  ];
+
+  const grid = document.getElementById('stats-grid');
+  grid.innerHTML = cards.map(card => `
+    <div class="stat-card">
+      <div class="stat-card-title">${card.title}</div>
+      ${card.rows.map(([label, val]) => `
+        <div class="stat-row">
+          <span class="stat-label">${label}</span>
+          <span class="stat-val">${val}</span>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+
 function renderTankManager() {
   const view = document.getElementById('tank-manager-view');
   if (!view || !view.classList.contains('active')) return;
@@ -4180,6 +4284,7 @@ function useLifeBooster() {
   const bonus = 10 * 60 * 1000; // +10 minutes
   adults.forEach(m => { m.stageDuration += bonus; });
   state.inventory.lifeBooster--;
+  state.stats.invUsed.lifeBooster = (state.stats.invUsed.lifeBooster || 0) + 1;
   addXP(5);
   addLog(`🧪 Life Booster used! ${adults.length} adult${adults.length > 1 ? 's' : ''} gained +10 min lifespan`);
   addNotification('🧪 Life Boosted!');
@@ -4192,6 +4297,7 @@ function useGlowingFlakes() {
   if (!tank.eggsAdded) { addNotification('✨ Release eggs first!'); return; }
   tank.glowingFlakesActive = (tank.glowingFlakesActive || 0) + 1;
   state.inventory.glowingFlakes--;
+  state.stats.invUsed.glowingFlakes = (state.stats.invUsed.glowingFlakes || 0) + 1;
   addXP(5);
   const stack = tank.glowingFlakesActive;
   addLog(`✨ Glowing Flakes activated in ${tank.name}! ${stack} birth${stack > 1 ? 's' : ''} queued with 10× mutations. (parents take damage)`);
@@ -4202,6 +4308,7 @@ function useGlowingFlakes() {
 function toggleMagnifyingGlass() {
   if (state.inventory.magnifyingGlass <= 0) return;
   state.magnifyingGlassMode = !state.magnifyingGlassMode;
+  state.stats.invUsed.magnifyingGlass = (state.stats.invUsed.magnifyingGlass || 0) + 1;
   addNotification(state.magnifyingGlassMode ? '🔍 Genotype view ON' : '🔍 Phenotype view');
   saveState();
 }
@@ -4215,6 +4322,7 @@ function useBoosterEggPack() {
   const count = 5 + Math.floor(Math.random() * 4); // 5-8 eggs
   for (let i = 0; i < count; i++) createMonkey({ stage: 'egg', generation: state.stats.totalGenerations, tankId: state.activeTankId });
   state.inventory.boosterEggPack--;
+  state.stats.invUsed.boosterEggPack = (state.stats.invUsed.boosterEggPack || 0) + 1;
   addXP(5);
   addLog(`🥚 Booster Egg Pack used! ${count} new eggs added to the tank`);
   addNotification(`🥚 +${count} eggs!`);
@@ -4707,6 +4815,7 @@ function setupEventListeners() {
     if (!t || state.inventory.mutationInhibitor <= 0) return;
     if (Date.now() < (t.mutationInhibitorUntil || 0)) { addNotification('Already active in this tank!'); return; }
     state.inventory.mutationInhibitor--;
+    state.stats.invUsed.mutationInhibitor = (state.stats.invUsed.mutationInhibitor || 0) + 1;
     t.mutationInhibitorUntil = Date.now() + MUT_INHIBITOR_MS;
     addLog(`🧪 Mutation Inhibitor active in ${t.name} for 10 minutes.`, null, t.id);
     saveState();
@@ -5043,10 +5152,11 @@ function setupEventListeners() {
   });
 
   // Tank tabs
-  const tankTabs = ['tab-tank', 'tab-life-support', 'tab-population', 'tab-tank-manager'];
+  const tankTabs = ['tab-tank', 'tab-life-support', 'tab-population', 'tab-stats', 'tab-tank-manager'];
   const tankViews = {
     'tab-life-support': 'life-support-view',
     'tab-population':   'population-view',
+    'tab-stats':        'stats-view',
     'tab-tank-manager': 'tank-manager-view',
   };
   function switchTankTab(activeId) {
@@ -5059,6 +5169,7 @@ function setupEventListeners() {
     if (tankViews[activeId]) {
       document.getElementById(tankViews[activeId]).classList.add('active');
       if (activeId === 'tab-population')   renderPopulation();
+      if (activeId === 'tab-stats')        renderStats();
       if (activeId === 'tab-tank-manager') { _tmSig = ''; renderTankManager(); }
       if (activeId === 'tab-life-support') { _lsAerLevel = -1; _lsSkimLevel = -1; _lsFeederLevel = -1; }
     }
@@ -5341,6 +5452,7 @@ async function initGame() {
 
   // Step 1: Load & migrate state
   state = loadState();
+  if (!state.stats.accountCreatedAt) state.stats.accountCreatedAt = Date.now();
   if (!state.grants?.active?.length) generateGrants();
   setLoadingProgress(30, 'Restoring your farm…');
   await nextFrame();
@@ -5400,6 +5512,7 @@ async function initGame() {
     const now = Date.now();
     const dt = now - (state.lastTick || now);
     state.lastTick = now;
+    state.playTimeMs = (state.playTimeMs || 0) + dt;
     if (state.tanks.some(t => t.eggsAdded || t.purifying)) {
       gameTick(dt);
     }
