@@ -990,7 +990,7 @@ const DEFAULT_TANK = {
   skimmer:   { level: 0, startedAt: null, duration: null },
   feeder:    { level: 0, startedAt: null, duration: null },
   tankCreatedAt: null,
-  glowingFlakesActive: false,
+  glowingFlakesActive: 0,
   popLevel: 0,
   eggSkimmer: false,
   eggSkimmerActive: false,
@@ -1148,7 +1148,7 @@ function migrateState(loaded) {
       skimmer:             loaded.skimmer  || JSON.parse(JSON.stringify(DEFAULT_TANK.skimmer)),
       feeder:              loaded.feeder   || JSON.parse(JSON.stringify(DEFAULT_TANK.feeder)),
       tankCreatedAt:       loaded.tankCreatedAt       || null,
-      glowingFlakesActive: loaded.glowingFlakesActive || loaded.splicerActive || false,
+      glowingFlakesActive: Number(loaded.glowingFlakesActive || loaded.splicerActive || 0),
     }];
     loaded.activeTankId = 0;
   }
@@ -1162,7 +1162,12 @@ function migrateState(loaded) {
 
   const s = Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_STATE)), loaded);
   // Merge each tank with DEFAULT_TANK to fill in missing fields
-  s.tanks = (loaded.tanks || []).map(t => Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_TANK)), t));
+  s.tanks = (loaded.tanks || []).map(t => {
+    const tank = Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_TANK)), t);
+    // Normalise boolean glowingFlakesActive from old saves
+    if (typeof tank.glowingFlakesActive === 'boolean') tank.glowingFlakesActive = tank.glowingFlakesActive ? 1 : 0;
+    return tank;
+  });
   s.activeTankId = loaded.activeTankId ?? 0;
   s.stats   = Object.assign({}, DEFAULT_STATE.stats,  loaded.stats   || {});
   s.skills  = Object.assign({}, DEFAULT_STATE.skills, loaded.skills  || {});
@@ -2153,12 +2158,12 @@ function processBirths(aliveMonkeys, tank) {
 
     const father = state.monkeys.find(mp => mp.id === m.mateId);
 
-    // Glowing Flakes: boost mutations, deal damage to parents (per-tank)
-    const usedFlakes = tank.glowingFlakesActive;
+    // Glowing Flakes: boost mutations, deal damage to parents (per-tank, stackable)
+    const usedFlakes = (tank.glowingFlakesActive || 0) > 0;
     if (usedFlakes) {
       m.health = Math.max(1, m.health - 20);
       if (father?.alive) father.health = Math.max(1, father.health - 10);
-      tank.glowingFlakesActive = false;
+      tank.glowingFlakesActive--;
     }
 
     const mb = getMasteryBonuses();
@@ -4032,12 +4037,14 @@ function useLifeBooster() {
 
 function useGlowingFlakes() {
   if (state.inventory.glowingFlakes <= 0) return;
-  if (!activeTank().eggsAdded) { addNotification('✨ Release eggs first!'); return; }
-  activeTank().glowingFlakesActive = true;
+  const tank = activeTank();
+  if (!tank.eggsAdded) { addNotification('✨ Release eggs first!'); return; }
+  tank.glowingFlakesActive = (tank.glowingFlakesActive || 0) + 1;
   state.inventory.glowingFlakes--;
   addXP(5);
-  addLog('✨ Glowing Flakes activated! Next birth has 10× mutation rates. (parents will take damage)');
-  addNotification('✨ Glowing Flakes active!');
+  const stack = tank.glowingFlakesActive;
+  addLog(`✨ Glowing Flakes activated in ${tank.name}! ${stack} birth${stack > 1 ? 's' : ''} queued with 10× mutations. (parents take damage)`);
+  addNotification(`✨ Glowing Flakes ×${stack} active!`);
   saveState();
 }
 
@@ -4077,8 +4084,12 @@ function renderInventory() {
 
   document.getElementById('inv-glowing-flakes-cnt').textContent = inv.glowingFlakes.toLocaleString();
   document.getElementById('btn-use-glowing-flakes').disabled = inv.glowingFlakes <= 0 || !hasLife;
+  const flakesStack = activeTank().glowingFlakesActive || 0;
   const flakesBadge = document.getElementById('glowing-flakes-active-badge');
-  if (flakesBadge) flakesBadge.style.display = activeTank().glowingFlakesActive ? '' : 'none';
+  if (flakesBadge) {
+    flakesBadge.style.display = flakesStack > 0 ? '' : 'none';
+    flakesBadge.textContent = flakesStack > 1 ? `● ACTIVE ×${flakesStack}` : '● ACTIVE';
+  }
 
   document.getElementById('inv-magnifying-glass-cnt').textContent = inv.magnifyingGlass.toLocaleString();
   const mgBtn = document.getElementById('btn-toggle-magnifying-glass');
