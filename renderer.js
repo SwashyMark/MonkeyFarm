@@ -846,6 +846,7 @@ const AudioEngine = (() => {
   };
 
   function play(name) {
+    if (_calculatingOfflineProgress) return;  // Suppress sounds during offline progress calculation
     if (_sfxVol < 0.01) return;
     const ctx = _ensure();
     const fn = SFX[name];
@@ -1209,6 +1210,7 @@ let pausedAt = 0;
 let limitViewToCap    = localStorage.getItem('limitViewToCap')    !== '0';  // default on
 let bioGlowAnimation  = localStorage.getItem('bioGlowAnimation')  !== '0';  // default on
 let colorTheme        = localStorage.getItem('colorTheme') || 'dark';
+let _calculatingOfflineProgress = false;  // flag to suppress sounds and hydra spawns during offline calc
 // Apply immediately so loading screen inherits the saved theme
 if (colorTheme === 'light')      document.body.classList.add('theme-light');
 if (colorTheme === 'colorblind') document.body.classList.add('theme-colorblind');
@@ -2075,7 +2077,7 @@ function gameTick(dtMs) {
 
     // --- Hydra: rare spawn, swims and hunts sea monkeys ---
     const alivePrey = state.monkeys.filter(m => m.tankId === tank.id && m.alive && !m.inStorage);
-    if (!tank.hydra && alivePrey.length > 0) {
+    if (!tank.hydra && alivePrey.length > 0 && !_calculatingOfflineProgress) {
       const spawnProb = HYDRA_SPAWN_CHANCE * dtSec * (debugMode ? debugSpeed : 1);
       if (Math.random() < spawnProb) {
         tank.hydra = { hp: HYDRA_HP, lastHunt: Date.now(), huntInterval: HYDRA_HUNT_MIN + Math.random() * (HYDRA_HUNT_MAX - HYDRA_HUNT_MIN) };
@@ -2600,6 +2602,9 @@ async function applyOfflineProgress(onProgress) {
   offlineMs = Math.min(offlineMs, OFFLINE_CAP_MS);
   state.totalOfflineMs = (state.totalOfflineMs || 0) + offlineMs;
 
+  // Suppress sounds and hydra spawns during offline calculation
+  _calculatingOfflineProgress = true;
+
   // Split into death-protected and unprotected periods
   const protExpiry    = state.offlineProtectionExpiry || 0;
   const protectedMs   = Math.min(offlineMs, Math.max(0, protExpiry - originalLastTick));
@@ -2613,6 +2618,18 @@ async function applyOfflineProgress(onProgress) {
   const totalChunks = Math.ceil(offlineMs / OFFLINE_CHUNK_MS) || 1;
   let chunksProcessed = 0;
   const YIELD_EVERY = 20; // yield to browser every 20 chunks (~200s sim time)
+
+  // During the protected period monkey stage timers are frozen — push them
+  // forward by the full protected duration so no aging occurs offline.
+  if (protectedMs > 0) {
+    for (const m of state.monkeys) {
+      if (!m.alive) continue;
+      if (m.stageStartTime != null) m.stageStartTime += protectedMs;
+      if (m.pregnantSince  != null) m.pregnantSince  += protectedMs;
+      if (m.bornAt         != null) m.bornAt         += protectedMs;
+      if (m.lastMatedAt    != null) m.lastMatedAt    += protectedMs;
+    }
+  }
 
   // Simulate protected period first (deaths suppressed)
   _suppressDeaths = true;
@@ -2651,6 +2668,9 @@ async function applyOfflineProgress(onProgress) {
     state.gracePeriodUntil = now + 5 * 60 * 1000;
     addLog(`🛡 5-min grace period — deaths paused while you settle in.`);
   }
+
+  // Re-enable sounds and hydra spawns
+  _calculatingOfflineProgress = false;
 }
 
 // ─────────────────────────────────────────────
@@ -4517,8 +4537,12 @@ function releaseEggs() {
   state.lastTick = Date.now();
 
   const count = 3 + Math.floor(Math.random() * 3); // 3-5 eggs
+  // Guarantee at least one male and one female so the colony can grow
+  const sexes = ['M', 'F'];
+  for (let i = 2; i < count; i++) sexes.push(Math.random() < 0.5 ? 'M' : 'F');
+  sexes.sort(() => Math.random() - 0.5); // shuffle so guaranteed pair isn't always first
   for (let i = 0; i < count; i++) {
-    createMonkey({ stage: 'egg', generation: 1, tankId: t.id });
+    createMonkey({ stage: 'egg', generation: 1, tankId: t.id, sex: sexes[i] });
   }
   addLog(`🥚 Released ${count} sea monkey eggs into the tank!`, null, t.id);
   addNotification(`🥚 ${count} eggs released!`);
