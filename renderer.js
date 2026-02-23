@@ -3833,19 +3833,10 @@ function renderMonkeys() {
 }
 
 function renderStats() {
-  const fmtTime = (ms) => {
-    if (!ms) return '—';
-    const days = Math.floor(ms / 86400000);
-    const hours = Math.floor((ms % 86400000) / 3600000);
-    const mins = Math.floor((ms % 3600000) / 60000);
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${mins}m`;
-    return `${mins}m`;
-  };
   const fmtNum = (n) => (n || 0).toLocaleString();
 
-  const now = Date.now();
-  const accountAgems = state.stats.accountCreatedAt ? now - state.stats.accountCreatedAt : 0;
+  // Account age = total playtime + total offline time (same as settings popup)
+  const accountAge = (state.playTimeMs || 0) + (state.totalOfflineMs || 0);
   const playTimeMs = state.playTimeMs || 0;
   const offlineTimeMs = state.totalOfflineMs || 0;
 
@@ -3859,10 +3850,10 @@ function renderStats() {
     {
       title: '👤 Account',
       rows: [
-        ['Account Age', fmtTime(accountAgems)],
+        ['Account Age', fmtDuration(accountAge)],
         ['Created', state.stats.accountCreatedAt ? new Date(state.stats.accountCreatedAt).toLocaleDateString() : '—'],
-        ['Play Time', fmtTime(playTimeMs)],
-        ['Offline Time', fmtTime(offlineTimeMs)],
+        ['Play Time', fmtDuration(playTimeMs)],
+        ['Offline Time', fmtDuration(offlineTimeMs)],
       ]
     },
     {
