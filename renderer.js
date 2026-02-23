@@ -54,48 +54,61 @@ const HYDRA_HP             = 25;     // clicks required to kill
 // type: 'timer'          — accumulate qualifying ms in gameTick
 const GRANT_POOL = [
   { id:'iron_gut',        title:'Pollution Study',         type:'snapshot',
-    desc:'Provide 3 adults with the Iron Gut constitution for our toxicity research.',
+    desc:'Provide 3 Iron Gut adults for our toxicity research. Specimens will be collected.',
     target:3,  reward:{ cash:1500, shells:1 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.constitution,'constitution')==='H_IRON').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.constitution,'constitution')==='H_IRON').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.constitution,'constitution')==='H_IRON').slice(0,3) },
   { id:'hyperactive',     title:'Velocity Trials',         type:'snapshot',
-    desc:'Breed 2 adults with Hyperactive Metabolism for our speed study.',
+    desc:'Provide 2 Hyperactive adults for our speed study. Specimens will be collected.',
     target:2,  reward:{ cash:1200, shells:1 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.metabolism,'metabolism')==='M_FAST').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.metabolism,'metabolism')==='M_FAST').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.metabolism,'metabolism')==='M_FAST').slice(0,2) },
   { id:'filter_feeders',  title:'Biofiltration Contract',  type:'snapshot',
-    desc:'Maintain 3 Filter Feeder adults — they clean our lab tanks.',
+    desc:'Provide 3 Filter Feeder adults for lab tank trials. Specimens will be collected.',
     target:3,  reward:{ cash:1800, shells:1 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&hasDominant(m.dna?.filt,'F')).length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&hasDominant(m.dna?.filt,'F')).length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&hasDominant(m.dna?.filt,'F')).slice(0,3) },
   { id:'fan_tail',        title:'Hydrodynamics Study',     type:'snapshot',
-    desc:'Breed a sea monkey with a Fan Tail for swimming-force analysis.',
+    desc:'Provide a Fan Tail sea monkey for swimming-force analysis. Specimen will be collected.',
     target:1,  reward:{ cash:900, shells:1 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN').slice(0,1) },
   { id:'twin_tail',       title:'Twin Tail Specimen',      type:'snapshot',
-    desc:'Breed a sea monkey with a Twin Tail for comparative locomotion research.',
+    desc:'Provide a Twin Tail sea monkey for comparative locomotion research. Specimen will be collected.',
     target:1,  reward:{ cash:1100, shells:1 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_DBL').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_DBL').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_DBL').slice(0,1) },
   { id:'ancient_one',     title:'Longevity Research',      type:'snapshot',
-    desc:'Discover an Ancient One — a sea monkey of exceptional natural lifespan.',
+    desc:'Discover an Ancient One for exceptional lifespan research. Specimen will be collected.',
     target:1,  reward:{ cash:2000, shells:3 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.longevity,'longevity')==='L_ANC').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.longevity,'longevity')==='L_ANC').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.longevity,'longevity')==='L_ANC').slice(0,1) },
   { id:'purple_specimen', title:'Chromatic Anomaly',       type:'snapshot',
-    desc:'Breed a rare Purple sea monkey for pigmentation study.',
+    desc:'Provide a rare Purple sea monkey for pigmentation study. Specimen will be collected.',
     target:1,  reward:{ cash:2000, shells:2 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='purple').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='purple').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='purple').slice(0,1) },
   { id:'bioluminescent',  title:'Deep-Sea Glow Project',   type:'snapshot',
-    desc:'Breed a Bioluminescent sea monkey for light-organ analysis.',
+    desc:'Provide a Bioluminescent sea monkey for light-organ analysis. Specimen will be collected.',
     target:1,  reward:{ cash:2500, shells:3 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_BIO').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_BIO').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_BIO').slice(0,1) },
   { id:'void_black',      title:'Void Specimen Needed',    type:'snapshot',
-    desc:'Acquire a Void Black sea monkey for optical absorption tests.',
+    desc:'Provide a Void Black sea monkey for optical absorption tests. Specimen will be collected.',
     target:1,  reward:{ cash:3000, shells:5 },
-    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_VOID').length },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_VOID').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_VOID').slice(0,1) },
   { id:'fan_and_green',   title:'Compound Specimen',       type:'snapshot',
-    desc:'Breed a sea monkey with Fan Tail AND Algae Green colouration.',
+    desc:'Provide a sea monkey with Fan Tail AND Algae Green colouration. Specimen will be collected.',
     target:1,  reward:{ cash:2500, shells:4 },
     progress:()=> state.monkeys.filter(m=>
       m.alive&&!m.inStorage&&
       resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN'&&
-      resolveColorPhenotype(m.dna?.body_color)==='C_GRN').length },
+      resolveColorPhenotype(m.dna?.body_color)==='C_GRN').length,
+    sacrifice:()=> state.monkeys.filter(m=>
+      m.alive&&!m.inStorage&&
+      resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_FAN'&&
+      resolveColorPhenotype(m.dna?.body_color)==='C_GRN').slice(0,1) },
   { id:'colony_size',     title:'Colony Census',           type:'snapshot',
     desc:'Grow a single tank to 20 living sea monkeys.',
     target:20, reward:{ cash:1000, shells:1 },
@@ -120,24 +133,92 @@ const GRANT_POOL = [
     desc:'Keep food, oxygen & cleanliness all above 70% for 3 minutes in any tank.',
     target:3*60_000, reward:{ cash:2000, shells:1 },
     progress:(g)=> g.accumMs||0 },
+  { id:'golden_one',      title:'Midas Project',           type:'snapshot',
+    desc:'Provide a Midas Gold sea monkey for precious metal research. Specimen will be collected.',
+    target:1,  reward:{ cash:2500, shells:4 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_GOLD').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_GOLD').slice(0,1) },
+  { id:'sloth_squad',     title:'Torpor Study',            type:'snapshot',
+    desc:'Provide 3 Sloth Mode adults for metabolic efficiency research. Specimens will be collected.',
+    target:3,  reward:{ cash:2200, shells:2 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.metabolism,'metabolism')==='M_SLOW').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&resolveAllele(m.dna?.metabolism,'metabolism')==='M_SLOW').slice(0,3) },
+  { id:'twin_tail_trio',  title:'Triple Fin Exhibition',   type:'snapshot',
+    desc:'Provide 3 Twin Tail sea monkeys for our locomotion collection. Specimens will be collected.',
+    target:3,  reward:{ cash:2800, shells:3 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_DBL').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.tail_shape,'tail_shape')==='T_DBL').slice(0,3) },
+  { id:'purple_duo',      title:'Double Chromatic Anomaly',type:'snapshot',
+    desc:'Provide 2 Purple sea monkeys for pigmentation analysis. Specimens will be collected.',
+    target:2,  reward:{ cash:3500, shells:4 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='purple').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='purple').slice(0,2) },
+  { id:'bio_and_void',    title:'Light & Dark Contrast',   type:'snapshot',
+    desc:'Provide both a Bioluminescent and a Void Black sea monkey. Both specimens will be collected.',
+    target:2,  reward:{ cash:5000, shells:6 },
+    progress:()=> (state.monkeys.some(m=>m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_BIO')?1:0)
+               +(state.monkeys.some(m=>m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_VOID')?1:0),
+    sacrifice:()=> [
+      state.monkeys.find(m=>m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_BIO'),
+      state.monkeys.find(m=>m.alive&&!m.inStorage&&resolveColorPhenotype(m.dna?.body_color)==='C_VOID'),
+    ].filter(Boolean) },
+  { id:'mega_colony',     title:'Population Surge',        type:'snapshot',
+    desc:'Grow a single tank to 30 living sea monkeys.',
+    target:30, reward:{ cash:2000, shells:2 },
+    progress:()=> Math.max(0,...state.tanks.map(t=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.tankId===t.id).length)) },
+  { id:'filter_army',     title:'Biofiltration Fleet',     type:'snapshot',
+    desc:'Provide 6 Filter Feeder adults for large-scale lab trials. Specimens will be collected.',
+    target:6,  reward:{ cash:3500, shells:3 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&hasDominant(m.dna?.filt,'F')).length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&m.stage==='adult'&&hasDominant(m.dna?.filt,'F')).slice(0,6) },
+  { id:'ancient_trio',    title:'Elder Council',           type:'snapshot',
+    desc:'Provide 3 Ancient One sea monkeys for our longevity research panel. Specimens will be collected.',
+    target:3,  reward:{ cash:6000, shells:6 },
+    progress:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.longevity,'longevity')==='L_ANC').length,
+    sacrifice:()=> state.monkeys.filter(m=> m.alive&&!m.inStorage&&resolveAllele(m.dna?.longevity,'longevity')==='L_ANC').slice(0,3) },
+  { id:'mass_hatch',      title:'Hatchery Overdrive',       type:'relative_count',
+    desc:'Hatch 50 eggs for our population density records.',
+    target:50, reward:{ cash:2500, shells:2 },
+    progress:(g)=> Math.max(0, state.stats.totalBorn-(g.baseValue??state.stats.totalBorn)) },
+  { id:'century_hatch',   title:'Century Hatch',            type:'relative_count',
+    desc:'Hatch 100 eggs — a landmark in reproduction rate research.',
+    target:100,reward:{ cash:6000, shells:4 },
+    progress:(g)=> Math.max(0, state.stats.totalBorn-(g.baseValue??state.stats.totalBorn)) },
+  { id:'generation_marathon', title:'Evolutionary Sprint', type:'relative_count',
+    desc:'Breed 10 new generations from the point this grant was issued.',
+    target:10, reward:{ cash:8000, shells:5 },
+    progress:(g)=> Math.max(0, state.stats.totalGenerations-(g.baseValue??state.stats.totalGenerations)) },
+  { id:'long_survival',   title:'Extended Survivability',   type:'timer',
+    desc:'Keep your tanks running with no deaths for 10 minutes straight.',
+    target:10*60_000, reward:{ cash:5000, shells:3 },
+    progress:(g)=> g.accumMs||0 },
+  { id:'peak_conditions', title:'Peak Performance Protocol',type:'timer',
+    desc:'Keep food, oxygen & cleanliness all above 80% for 5 minutes in any tank.',
+    target:5*60_000, reward:{ cash:4500, shells:3 },
+    progress:(g)=> g.accumMs||0 },
 ];
 const GRANT_MAP = new Map(GRANT_POOL.map(g => [g.id, g]));
 
 // ── GRANT LOGIC ───────────────────────────────────────────────────────────────
 function generateGrants() {
   if (!state.grants) state.grants = { active: [] };
-  const need    = 3 - state.grants.active.length;
-  if (need <= 0) return;
+  if (state.grants.active.length > 0) return; // only refresh when all grants have been claimed
+  const need = 3;
   const activeIds = new Set(state.grants.active.map(g => g.id));
   const eligible  = GRANT_POOL.filter(g => !activeIds.has(g.id));
   const shuffled  = [...eligible].sort(() => Math.random() - 0.5);
   const picks     = shuffled.slice(0, need);
   for (const g of picks) {
     const entry = { id: g.id, done: false };
-    if (g.id === 'generation_climb') entry.baseValue = state.stats.totalGenerations;
-    if (g.id === 'hatch_quota')      entry.baseValue = state.stats.totalBorn;
-    if (g.id === 'survival_study')   { entry.accumMs = 0; entry.lastDeathCount = state.stats.totalDied; }
-    if (g.id === 'water_quality')    entry.accumMs = 0;
+    if (g.id === 'generation_climb')    entry.baseValue = state.stats.totalGenerations;
+    if (g.id === 'hatch_quota')         entry.baseValue = state.stats.totalBorn;
+    if (g.id === 'mass_hatch')          entry.baseValue = state.stats.totalBorn;
+    if (g.id === 'century_hatch')       entry.baseValue = state.stats.totalBorn;
+    if (g.id === 'generation_marathon') entry.baseValue = state.stats.totalGenerations;
+    if (g.id === 'survival_study')  { entry.accumMs = 0; entry.lastDeathCount = state.stats.totalDied; }
+    if (g.id === 'long_survival')   { entry.accumMs = 0; entry.lastDeathCount = state.stats.totalDied; }
+    if (g.id === 'water_quality')   entry.accumMs = 0;
+    if (g.id === 'peak_conditions') entry.accumMs = 0;
     state.grants.active.push(entry);
   }
 }
@@ -158,10 +239,21 @@ function checkGrantsInTick(dtMs) {
         } else {
           g.accumMs = (g.accumMs || 0) + dtMs;
         }
+      } else if (g.id === 'long_survival') {
+        if (state.stats.totalDied > (g.lastDeathCount ?? state.stats.totalDied)) {
+          g.accumMs = 0;
+          g.lastDeathCount = state.stats.totalDied;
+        } else {
+          g.accumMs = (g.accumMs || 0) + dtMs;
+        }
       } else if (g.id === 'water_quality') {
         const anyGood = state.tanks.some(t =>
           t.eggsAdded && t.food >= 70 && t.oxygen >= 70 && t.cleanliness >= 70);
         if (anyGood) g.accumMs = (g.accumMs || 0) + dtMs;
+      } else if (g.id === 'peak_conditions') {
+        const anyPeak = state.tanks.some(t =>
+          t.eggsAdded && t.food >= 80 && t.oxygen >= 80 && t.cleanliness >= 80);
+        if (anyPeak) g.accumMs = (g.accumMs || 0) + dtMs;
       }
     }
     if (def.progress(g) >= def.target) {
@@ -192,6 +284,10 @@ function claimGrant(id) {
   addLog(`📋 Grant claimed: "${def.title}" — +£${cashAmt}${shellStr}`);
   addNotification(`📋 +£${cashAmt}${shellStr}`);
   state.stats.grantsCompleted = (state.stats.grantsCompleted || 0) + 1;
+  if (def.sacrifice) {
+    const victims = def.sacrifice();
+    for (const m of victims) killMonkey(m, 'grant collection');
+  }
   state.grants.active = state.grants.active.filter(g => g.id !== id);
   generateGrants(); // top back up to 3
   _grantsSig = '';
@@ -260,51 +356,51 @@ function renderGrants() {
 // ── SKILL TREE ────────────────────────────────────────────────────────────────
 const SKILL_TREE = [
   { id:'genetics',   icon:'🧬', label:'Geneticist', nodes:[
-    { id:'mendels_luck',       title:"Mendel's Luck",      maxLevel:5, costs:[2,3,3,4,4],
+    { id:'mendels_luck',       title:"Mendel's Luck",      maxLevel:5, costs:[10,15,15,20,20], cashCosts:[1000,2000,3000,4000,5000],
       desc:n=>`+${n}% to all mutation rates.` },
-    { id:'dominant_recessive', title:'Dominant Recessive', maxLevel:1, costs:[3],
+    { id:'dominant_recessive', title:'Dominant Recessive', maxLevel:1, costs:[15], cashCosts:[2500],
       desc:()=>'Rare recessive genes have a 10% chance to express as dominant.' },
-    { id:'mitosis',            title:'Mitosis',            maxLevel:1, costs:[5],
+    { id:'mitosis',            title:'Mitosis',            maxLevel:1, costs:[25], cashCosts:[5000],
       desc:()=>'5% chance for an egg to hatch as identical twins.' },
-    { id:'radiant_glow',       title:'Radiant Glow',       maxLevel:1, costs:[8],
+    { id:'radiant_glow',       title:'Radiant Glow',       maxLevel:1, costs:[40], cashCosts:[10000],
       desc:()=>'Bioluminescent & Gold variants take 50% less pollution damage.' },
-    { id:'dna_archive',        title:'DNA Archive',        maxLevel:1, costs:[12], capstone:true,
+    { id:'dna_archive',        title:'DNA Archive',        maxLevel:1, costs:[60], cashCosts:[25000], capstone:true,
       desc:()=>"Store one sea monkey's DNA. New hatchlings have a 15% chance to inherit it." },
   ]},
   { id:'automator',  icon:'⚙️', label:'Automator',  nodes:[
-    { id:'teflon_glass',   title:'Teflon Glass',   maxLevel:1, costs:[2],
+    { id:'teflon_glass',    title:'Teflon Glass',    maxLevel:1, costs:[10], cashCosts:[1000],
       desc:()=>'Cleanliness drains 15% slower.' },
-    { id:'preservatives',  title:'Preservatives',  maxLevel:1, costs:[3],
+    { id:'preservatives',   title:'Preservatives',   maxLevel:1, costs:[15], cashCosts:[2500],
       desc:()=>'Corpses take 20% longer to decay.' },
-    { id:'phantom_siphon', title:'Phantom Siphon', maxLevel:1, costs:[5],
+    { id:'phantom_siphon',  title:'Phantom Siphon',  maxLevel:1, costs:[25], cashCosts:[5000],
       desc:()=>'A ghostly baster automatically removes one corpse every 60 seconds.' },
-    { id:'aerobic_bacteria',title:'Aerobic Bacteria',maxLevel:1, costs:[8],
+    { id:'aerobic_bacteria',title:'Aerobic Bacteria',maxLevel:1, costs:[40], cashCosts:[10000],
       desc:()=>'Tanks passively regenerate a small amount of oxygen on their own.' },
-    { id:'circle_of_life', title:'Circle of Life', maxLevel:1, costs:[12], capstone:true,
+    { id:'circle_of_life',  title:'Circle of Life',  maxLevel:1, costs:[60], cashCosts:[25000], capstone:true,
       desc:()=>'Dead bodies no longer pollute the tank — they dissolve into food instead.' },
   ]},
   { id:'capitalist', icon:'💰', label:'Capitalist', nodes:[
-    { id:'bulk_discount',    title:'Bulk Discount',    maxLevel:1, costs:[2],
+    { id:'bulk_discount',    title:'Bulk Discount',    maxLevel:1, costs:[10], cashCosts:[1000],
       desc:()=>'All shop items cost 10% less.' },
-    { id:'shell_bounty',     title:'Shell Bounty',     maxLevel:1, costs:[3],
+    { id:'shell_bounty',     title:'Shell Bounty',     maxLevel:1, costs:[15], cashCosts:[2500],
       desc:()=>'Golden Shell rewards from grants are tripled.' },
-    { id:'viral_marketing',  title:'Viral Marketing',  maxLevel:1, costs:[5],
+    { id:'viral_marketing',  title:'Viral Marketing',  maxLevel:1, costs:[25], cashCosts:[5000],
       desc:()=>'Selling a rare variant doubles molt income for 3 minutes.' },
-    { id:'angel_investor',   title:'Angel Investor',   maxLevel:1, costs:[8],
+    { id:'angel_investor',   title:'Angel Investor',   maxLevel:1, costs:[40], cashCosts:[10000],
       desc:()=>'First time each tank reaches 50 sea monkeys, receive a £3,000 cash bonus.' },
-    { id:'trust_fund',       title:'Trust Fund',       maxLevel:1, costs:[12], capstone:true,
+    { id:'trust_fund',       title:'Trust Fund',       maxLevel:1, costs:[60], cashCosts:[25000], capstone:true,
       desc:()=>'Scientific grants pay 5× more cash.' },
   ]},
   { id:'caretaker',  icon:'💚', label:'Caretaker',  nodes:[
-    { id:'incubator',         title:'Incubator',         maxLevel:1, costs:[2],
+    { id:'incubator',         title:'Incubator',         maxLevel:1, costs:[10], cashCosts:[1000],
       desc:()=>'Eggs hatch 30% faster.' },
-    { id:'iron_lungs',        title:'Iron Lungs',        maxLevel:1, costs:[3],
+    { id:'iron_lungs',        title:'Iron Lungs',        maxLevel:1, costs:[15], cashCosts:[2500],
       desc:()=>'Sea monkeys consume oxygen 15% slower.' },
-    { id:'fountain_of_youth', title:'Fountain of Youth', maxLevel:1, costs:[5],
+    { id:'fountain_of_youth', title:'Fountain of Youth', maxLevel:1, costs:[25], cashCosts:[5000],
       desc:()=>'Adult life expectancy increased by 20%.' },
-    { id:'dietary_efficiency',title:'Dietary Efficiency',maxLevel:1, costs:[8],
+    { id:'dietary_efficiency',title:'Dietary Efficiency',maxLevel:1, costs:[40], cashCosts:[10000],
       desc:()=>'Sea monkeys consume food 20% slower.' },
-    { id:'cryo_pod',          title:'Cryo-Pod',          maxLevel:1, costs:[12], capstone:true,
+    { id:'cryo_pod',          title:'Cryo-Pod',          maxLevel:1, costs:[60], cashCosts:[25000], capstone:true,
       desc:()=>'Designate one tank: sea monkeys in it never die of old age.' },
   ]},
 ];
@@ -324,17 +420,20 @@ function canBuySkill(branchId, nodeId) {
     const prev = branch.nodes[idx - 1];
     if (sk(prev.id) < prev.maxLevel) return false;
   }
-  const cost = node.costs[cur] ?? node.costs[node.costs.length - 1];
-  return (state.shells || 0) >= cost;
+  const cost     = node.costs[cur]     ?? node.costs[node.costs.length - 1];
+  const cashCost = node.cashCosts?.[cur] ?? node.cashCosts?.[node.cashCosts.length - 1] ?? 0;
+  return (state.shells || 0) >= cost && (state.currency || 0) >= cashCost;
 }
 
 function buySkill(branchId, nodeId) {
   if (!canBuySkill(branchId, nodeId)) return;
-  const branch = SKILL_TREE.find(b => b.id === branchId);
-  const node   = branch.nodes.find(n => n.id === nodeId);
-  const cur    = sk(nodeId);
-  const cost   = node.costs[cur] ?? node.costs[node.costs.length - 1];
-  state.shells -= cost;
+  const branch   = SKILL_TREE.find(b => b.id === branchId);
+  const node     = branch.nodes.find(n => n.id === nodeId);
+  const cur      = sk(nodeId);
+  const cost     = node.costs[cur]     ?? node.costs[node.costs.length - 1];
+  const cashCost = node.cashCosts?.[cur] ?? node.cashCosts?.[node.cashCosts.length - 1] ?? 0;
+  state.shells   -= cost;
+  state.currency -= cashCost;
   if (!state.skills) state.skills = {};
   state.skills[nodeId] = cur + 1;
   const lvlStr = node.maxLevel > 1 ? ` (Level ${cur + 1})` : '';
@@ -350,11 +449,12 @@ function renderSkillTree() {
   const modal = document.getElementById('skills-modal');
   if (!modal?.classList.contains('open')) return;
 
-  const sig = JSON.stringify(state.skills) + (state.shells || 0);
+  const sig = JSON.stringify(state.skills) + (state.shells || 0) + (state.currency || 0);
   if (sig === _skillSig) return;
   _skillSig = sig;
 
   document.getElementById('skills-shells-val').textContent = state.shells || 0;
+  document.getElementById('skills-currency-val').textContent = '£' + (state.currency || 0).toLocaleString();
 
   const container = document.getElementById('skills-branches');
   container.innerHTML = SKILL_TREE.map(branch => {
@@ -363,15 +463,19 @@ function renderSkillTree() {
       const maxed   = cur >= node.maxLevel;
       const prevOk  = idx === 0 || sk(branch.nodes[idx - 1].id) >= branch.nodes[idx - 1].maxLevel;
       const locked  = !prevOk;
-      const cost    = node.costs[cur] ?? node.costs[node.costs.length - 1];
-      const canAffd = !locked && !maxed && (state.shells || 0) >= cost;
+      const cost     = node.costs[cur]     ?? node.costs[node.costs.length - 1];
+      const cashCost = node.cashCosts?.[cur] ?? node.cashCosts?.[node.cashCosts.length - 1] ?? 0;
+      const canAffd  = !locked && !maxed && (state.shells || 0) >= cost && (state.currency || 0) >= cashCost;
       const levelStr = node.maxLevel > 1 ? ` <span class="skill-level">Lv ${cur}/${node.maxLevel}</span>` : '';
       const desc    = typeof node.desc === 'function' ? node.desc(Math.max(1, cur)) : node.desc;
       let stateClass = maxed ? 'skill-node owned' : locked ? 'skill-node locked' : 'skill-node available';
       if (node.capstone) stateClass += ' capstone';
-      const badge = maxed ? '<span class="skill-badge owned">✓</span>'
+      const statusBadge = maxed ? '<span class="skill-badge owned">✓</span>'
         : locked ? '<span class="skill-badge locked">🔒</span>'
-        : `<span class="skill-badge cost">🐚${cost}</span>`;
+        : '';
+      const costRow = (!maxed && !locked)
+        ? `<div class="skill-cost-row">🐚${cost} · £${cashCost.toLocaleString()}</div>`
+        : '';
       const btn = maxed ? ''
         : `<button class="skill-buy-btn${canAffd ? '' : ' disabled'}" data-buy-skill="${branch.id}:${node.id}" ${canAffd ? '' : 'disabled'}>
             ${locked ? 'Locked' : 'Unlock'}
@@ -392,7 +496,8 @@ function renderSkillTree() {
           : `<div class="skill-dna-stored dna-empty">No DNA stored. Archive a sea monkey from the Population view.</div>`;
       }
       return `<div class="${stateClass}">
-        <div class="skill-node-top">${badge}<span class="skill-title">${node.title}${levelStr}</span></div>
+        <div class="skill-node-top">${statusBadge}<span class="skill-title">${node.title}${levelStr}</span></div>
+        ${costRow}
         <div class="skill-desc">${desc}</div>
         ${extra}
         ${btn}
@@ -1170,7 +1275,13 @@ function migrateState(loaded) {
   });
   s.activeTankId = loaded.activeTankId ?? 0;
   s.stats   = Object.assign({}, DEFAULT_STATE.stats,  loaded.stats   || {});
-  s.skills  = Object.assign({}, DEFAULT_STATE.skills, loaded.skills  || {});
+  // Reset skill purchases once for v1.5.5 cost restructure
+  if (loaded.skillsResetV155) {
+    s.skills = Object.assign({}, DEFAULT_STATE.skills, loaded.skills || {});
+  } else {
+    s.skills = JSON.parse(JSON.stringify(DEFAULT_STATE.skills));
+    s.skillsResetV155 = true;
+  }
   s.milestones   = loaded.milestones || {};
   s.log          = loaded.log || [];
   s.nextMonkeyId = loaded.nextMonkeyId || 1;
