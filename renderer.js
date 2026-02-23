@@ -3914,7 +3914,9 @@ function renderStats() {
     },
   ];
 
-  const grid = document.getElementById('stats-grid');
+  const content = document.getElementById('facts-popup-content');
+  const grid = document.createElement('div');
+  grid.className = 'stats-grid';
   grid.innerHTML = cards.map(card => `
     <div class="stat-card">
       <div class="stat-card-title">${card.title}</div>
@@ -3926,6 +3928,8 @@ function renderStats() {
       `).join('')}
     </div>
   `).join('');
+  content.innerHTML = '';
+  content.appendChild(grid);
 }
 
 
@@ -5060,6 +5064,17 @@ function setupEventListeners() {
     }
   });
 
+  document.getElementById('btn-facts').addEventListener('click', (e) => {
+    e.stopPropagation();
+    renderStats();
+    document.getElementById('facts-overlay').classList.toggle('open');
+  });
+  document.getElementById('facts-overlay').addEventListener('click', (e) => {
+    if (!document.getElementById('facts-popup').contains(e.target)) {
+      document.getElementById('facts-overlay').classList.remove('open');
+    }
+  });
+
   document.getElementById('toggle-timers').addEventListener('change', (e) => {
     showTimers = e.target.checked;
   });
@@ -5152,11 +5167,10 @@ function setupEventListeners() {
   });
 
   // Tank tabs
-  const tankTabs = ['tab-tank', 'tab-life-support', 'tab-population', 'tab-stats', 'tab-tank-manager'];
+  const tankTabs = ['tab-tank', 'tab-life-support', 'tab-population', 'tab-tank-manager'];
   const tankViews = {
     'tab-life-support': 'life-support-view',
     'tab-population':   'population-view',
-    'tab-stats':        'stats-view',
     'tab-tank-manager': 'tank-manager-view',
   };
   function switchTankTab(activeId) {
@@ -5169,7 +5183,6 @@ function setupEventListeners() {
     if (tankViews[activeId]) {
       document.getElementById(tankViews[activeId]).classList.add('active');
       if (activeId === 'tab-population')   renderPopulation();
-      if (activeId === 'tab-stats')        renderStats();
       if (activeId === 'tab-tank-manager') { _tmSig = ''; renderTankManager(); }
       if (activeId === 'tab-life-support') { _lsAerLevel = -1; _lsSkimLevel = -1; _lsFeederLevel = -1; }
     }

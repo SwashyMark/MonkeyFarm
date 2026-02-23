@@ -111,6 +111,33 @@
       #btn-pause:hover { background: var(--bg-panel); color: var(--tx-hi); }
       #btn-pause.paused { border-color: #aa5500; color: #ffaa44; background: #2a1500; }
       #btn-pause.paused:hover { background: #3a2000; }
+      #btn-facts { background: none; border: 1px solid var(--brd-lo); border-radius: 6px; color: var(--tx-lo); font-size: 18px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s; flex-shrink: 0; }
+      #btn-facts:hover { background: var(--bg-panel); color: var(--tx-hi); }
+
+      /* Facts popup */
+      #facts-overlay {
+        position: fixed; inset: 0; z-index: 100;
+        display: none;
+      }
+      #facts-overlay.open { display: block; }
+      #facts-popup {
+        position: fixed; top: 56px; right: 12px;
+        background: var(--bg-panel); border: 1px solid var(--brd);
+        border-radius: 8px; padding: 14px;
+        width: 90vw; max-width: 800px; max-height: 80vh;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        display: flex; flex-direction: column; gap: 10px;
+        overflow-y: auto;
+      }
+      #facts-popup-title {
+        font-size: 12px; font-weight: bold; color: var(--tx-hi);
+        border-bottom: 1px solid var(--brd-lo); padding-bottom: 6px; margin-bottom: 4px;
+        flex-shrink: 0;
+      }
+      #facts-popup-content {
+        display: flex; flex-direction: column; gap: 10px;
+        overflow-y: auto; flex: 1;
+      }
 
       /* Settings popup */
       #settings-overlay {
@@ -1471,6 +1498,7 @@
       <button id="btn-dex" title="Monkeydex — Rare Variants">🔬</button>
       <button id="btn-grants" title="Scientific Grants">📋<span id="grants-notify-dot"></span></button>
       <button id="btn-skills" title="Skill Tree">🌿</button>
+      <button id="btn-facts" title="Interesting Facts">📊</button>
       <button id="btn-settings" title="Settings">⚙️</button>
       <div class="header-stats">
         <div class="hstat">
@@ -1658,6 +1686,14 @@
           </div>
         </div>
         <div style="text-align:center; font-size:10px; color:#3a6a8a; margin-top:4px;">v<span id="app-version"></span></div>
+      </div>
+    </div>
+
+    <!-- FACTS POPUP -->
+    <div id="facts-overlay">
+      <div id="facts-popup">
+        <div id="facts-popup-title">📊 Interesting Facts</div>
+        <div id="facts-popup-content"></div>
       </div>
     </div>
 
@@ -1946,7 +1982,6 @@
         <button class="tank-tab active" id="tab-tank">🌊 Tank</button>
         <button class="tank-tab" id="tab-life-support">⚙️ Life Support</button>
         <button class="tank-tab" id="tab-population">🦐 Population</button>
-        <button class="tank-tab" id="tab-stats">📊 Facts</button>
       </div>
       <!-- hidden anchor so switchTankTab can toggle active class on it -->
       <button id="tab-tank-manager" style="display:none"></button>
@@ -1971,10 +2006,6 @@
           </div>
         </div>
         <div id="population-list"></div>
-      </div>
-      <div id="stats-view">
-        <div id="stats-view-title">📊 Interesting Facts</div>
-        <div class="stats-grid" id="stats-grid"></div>
       </div>
       <div id="tank-overlay">
         <div id="overlay-emoji">🌊</div>
