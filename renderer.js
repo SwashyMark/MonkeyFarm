@@ -706,43 +706,43 @@ const PHENOTYPE_DEFS = {
   C_VOID:  { name: 'Void Black',     tier: 3, filterStr: 'grayscale(1) brightness(0.2)',            shadow: '0 0 10px 3px rgba(120,120,255,0.7)' },
 };
 
-const MASTERY_THRESHOLD_COLOR = 10;
-const MASTERY_THRESHOLD_FUNC  = 5;
+const MASTERY_THRESHOLD_COLOR = 1000; // fallback only
+const MASTERY_THRESHOLD_FUNC  = 1000; // fallback only
 const FILTER_FEED_RATE = 0.0008;  // cleanliness gained/sec per Filter Feeder monkey
 
 // ── DEX VARIANT DEFINITIONS ──────────────────
 const DEX_COLOR_VARIANTS = [
-  { key: 'C_PINK',  name: 'Standard Pink',  tier: 1, masteryDesc: 'Feed gives +10 more food' },
-  { key: 'C_GRN',   name: 'Algae Green',    tier: 1, masteryDesc: 'Filter Feeders 2× effective' },
-  { key: 'purple',  name: 'Purple',         tier: 2, masteryDesc: '+1 max egg per birth' },
-  { key: 'C_BLU',   name: 'Deep Blue',      tier: 2, masteryDesc: 'Adults live 10% longer' },
-  { key: 'C_TRANS', name: 'Transparent',    tier: 3, masteryDesc: 'Cleanliness drains 20% slower' },
-  { key: 'C_BIO',   name: 'Bioluminescent', tier: 3, masteryDesc: 'Oxygen depletes 15% slower' },
-  { key: 'C_GOLD',  name: 'Midas Gold',     tier: 3, masteryDesc: 'Food depletes 15% slower' },
-  { key: 'C_VOID',  name: 'Void Black',     tier: 3, masteryDesc: 'Food depletes 25% slower' },
+  { key: 'C_PINK',  name: 'Standard Pink',  tier: 1, masteryThreshold:  1_000, masteryDesc: 'Feed gives +10 more food' },
+  { key: 'C_GRN',   name: 'Algae Green',    tier: 1, masteryThreshold:  1_000, masteryDesc: 'Filter Feeders 2× effective' },
+  { key: 'purple',  name: 'Purple',         tier: 2, masteryThreshold:  5_000, masteryDesc: '+1 max egg per birth' },
+  { key: 'C_BLU',   name: 'Deep Blue',      tier: 2, masteryThreshold:  3_000, masteryDesc: 'Adults live 10% longer' },
+  { key: 'C_TRANS', name: 'Transparent',    tier: 3, masteryThreshold: 10_000, masteryDesc: 'Cleanliness drains 20% slower' },
+  { key: 'C_BIO',   name: 'Bioluminescent', tier: 3, masteryThreshold:  7_500, masteryDesc: 'Oxygen depletes 15% slower' },
+  { key: 'C_GOLD',  name: 'Midas Gold',     tier: 3, masteryThreshold:  7_500, masteryDesc: 'Food depletes 15% slower' },
+  { key: 'C_VOID',  name: 'Void Black',     tier: 3, masteryThreshold: 15_000, masteryDesc: 'Food depletes 25% slower' },
 ];
 const DEX_TAIL_VARIANTS = [
-  { key: 'T_STD', name: 'Standard Tail', masteryDesc: 'No bonus' },
-  { key: 'T_FAN', name: 'Fan Tail',      masteryDesc: '+1 extra egg per birth' },
-  { key: 'T_DBL', name: 'Twin Tail',     masteryDesc: '+1 extra egg per birth (stacks)' },
+  { key: 'T_STD', name: 'Standard Tail', masteryThreshold: 1_000, masteryDesc: 'No bonus' },
+  { key: 'T_FAN', name: 'Fan Tail',      masteryThreshold: 2_500, masteryDesc: '+1 extra egg per birth' },
+  { key: 'T_DBL', name: 'Twin Tail',     masteryThreshold: 4_000, masteryDesc: '+1 extra egg per birth (stacks)' },
 ];
 const DEX_METAB_VARIANTS = [
-  { key: 'M_NRM',  name: 'Normal Metabolism', masteryDesc: 'No bonus' },
-  { key: 'M_FAST', name: 'Hyperactive',       masteryDesc: 'Growth speed 1.7× (was 1.5×)' },
-  { key: 'M_SLOW', name: 'Sloth Mode',        masteryDesc: 'Hunger rate 0.5× (was 0.6×)' },
+  { key: 'M_NRM',  name: 'Normal Metabolism', masteryThreshold: 1_000, masteryDesc: 'No bonus' },
+  { key: 'M_FAST', name: 'Hyperactive',       masteryThreshold: 2_500, masteryDesc: 'Growth speed 1.7× (was 1.5×)' },
+  { key: 'M_SLOW', name: 'Sloth Mode',        masteryThreshold: 2_500, masteryDesc: 'Hunger rate 0.5× (was 0.6×)' },
 ];
 const DEX_CONST_VARIANTS = [
-  { key: 'H_AVG',  name: 'Average Health', masteryDesc: 'No bonus' },
-  { key: 'H_SENS', name: 'Sensitive',      masteryDesc: 'No bonus' },
-  { key: 'H_IRON', name: 'Iron Gut',       masteryDesc: 'Corpse drain ×0.5' },
+  { key: 'H_AVG',  name: 'Average Health', masteryThreshold: 1_000, masteryDesc: 'No bonus' },
+  { key: 'H_SENS', name: 'Sensitive',      masteryThreshold: 1_500, masteryDesc: 'No bonus' },
+  { key: 'H_IRON', name: 'Iron Gut',       masteryThreshold: 3_000, masteryDesc: 'Corpse drain ×0.5' },
 ];
 const DEX_LONGEV_VARIANTS = [
-  { key: 'L_STD', name: 'Standard Life', masteryDesc: 'No bonus' },
-  { key: 'L_FLY', name: 'Mayfly',        masteryDesc: 'No bonus' },
-  { key: 'L_ANC', name: 'Ancient One',   masteryDesc: 'Life multiplier 3.5× (was 2.5×)' },
+  { key: 'L_STD', name: 'Standard Life', masteryThreshold: 1_000, masteryDesc: 'No bonus' },
+  { key: 'L_FLY', name: 'Mayfly',        masteryThreshold: 1_500, masteryDesc: 'No bonus' },
+  { key: 'L_ANC', name: 'Ancient One',   masteryThreshold: 7_500, masteryDesc: 'Life multiplier 3.5× (was 2.5×)' },
 ];
 const DEX_FUNC_VARIANTS = [
-  { key: 'filterFeeder', name: 'Filter Feeder', masteryDesc: 'Filter Feeders also boost oxygen' },
+  { key: 'filterFeeder', name: 'Filter Feeder', masteryThreshold: 3_000, masteryDesc: 'Filter Feeders also boost oxygen' },
 ];
 
 const MILESTONES_DEF = [
@@ -1343,6 +1343,16 @@ function migrateState(loaded) {
     }
   }
   s.dex = defaultDexCopy;
+
+  // Un-master dex entries whose count is below the new per-variant threshold
+  const _allDexVariants = [...DEX_COLOR_VARIANTS, ...DEX_TAIL_VARIANTS, ...DEX_METAB_VARIANTS, ...DEX_CONST_VARIANTS, ...DEX_LONGEV_VARIANTS, ...DEX_FUNC_VARIANTS];
+  const _colorOrTailKeys = ['C_PINK','C_GRN','purple','C_BLU','C_GOLD','C_VOID','C_BIO','C_TRANS','T_STD','T_FAN','T_DBL'];
+  for (const v of _allDexVariants) {
+    const entry = s.dex[v.key];
+    if (!entry || !entry.mastered) continue;
+    const thr = v.masteryThreshold ?? (_colorOrTailKeys.includes(v.key) ? MASTERY_THRESHOLD_COLOR : MASTERY_THRESHOLD_FUNC);
+    if (entry.count < thr) entry.mastered = false;
+  }
 
   // ── Monkey migration ─────────────────────────
   const colorCodeMap = { Pk: 'C_PINK', Gr: 'C_GRN', bl: 'C_BLU', Au: 'C_GOLD', Bi: 'C_BIO', Tr: 'C_TRANS', d: 'C_PINK' };
@@ -2241,7 +2251,11 @@ function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   const cooldownElapsed = (now - (female.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
   if (female.lastMatedAt && cooldownElapsed < MATING_COOLDOWN) return;
 
-  const males = aliveMonkeys.filter(m => m.alive && m.stage === 'adult' && m.sex === 'M');
+  const males = aliveMonkeys.filter(m => {
+    if (!m.alive || m.stage !== 'adult' || m.sex !== 'M') return false;
+    const cdElapsed = (now - (m.lastMatedAt || 0)) * (debugMode ? debugSpeed : 1);
+    return !m.lastMatedAt || cdElapsed >= MATING_COOLDOWN;
+  });
   if (males.length === 0) return;
 
   const mate = males[Math.floor(Math.random() * males.length)];
@@ -2250,6 +2264,7 @@ function updateMonkeyReproduction(female, aliveMonkeys, tank) {
   female.pregnancyDuration = randRange(...PREGNANCY);
   female.mateId = mate.id;
   female.lastMatedAt = now;
+  mate.lastMatedAt = now;
   state.stats.totalMatingEvents++;
   addXP(5);
   addLog(`💕 ${female.name} & ${mate.name} mated!`, '💕 mated!', female.tankId);
@@ -2397,12 +2412,12 @@ function checkDexDiscovery(monkey) {
 function checkMastery(key) {
   const entry = state.dex[key];
   if (!entry || entry.mastered) return;
+  const allVariants = [...DEX_COLOR_VARIANTS, ...DEX_TAIL_VARIANTS, ...DEX_METAB_VARIANTS, ...DEX_CONST_VARIANTS, ...DEX_LONGEV_VARIANTS, ...DEX_FUNC_VARIANTS];
+  const variant = allVariants.find(v => v.key === key);
   const colorOrTailKeys = ['C_PINK','C_GRN','purple','C_BLU','C_GOLD','C_VOID','C_BIO','C_TRANS','T_STD','T_FAN','T_DBL'];
-  const threshold = colorOrTailKeys.includes(key) ? MASTERY_THRESHOLD_COLOR : MASTERY_THRESHOLD_FUNC;
+  const threshold = variant?.masteryThreshold ?? (colorOrTailKeys.includes(key) ? MASTERY_THRESHOLD_COLOR : MASTERY_THRESHOLD_FUNC);
   if (entry.count >= threshold) {
     entry.mastered = true;
-    const allVariants = [...DEX_COLOR_VARIANTS, ...DEX_TAIL_VARIANTS, ...DEX_METAB_VARIANTS, ...DEX_CONST_VARIANTS, ...DEX_LONGEV_VARIANTS, ...DEX_FUNC_VARIANTS];
-    const variant = allVariants.find(v => v.key === key);
     const name = variant?.name || key;
     const desc = variant?.masteryDesc || '';
     addXP(100);
@@ -2717,7 +2732,7 @@ function renderMonkeydex() {
 
   function makeCard(v) {
     const entry = dex[v.key] || { discovered: false, count: 0, mastered: false };
-    const threshold = COLOR_OR_TAIL_KEYS.includes(v.key) ? MASTERY_THRESHOLD_COLOR : MASTERY_THRESHOLD_FUNC;
+    const threshold = v.masteryThreshold ?? (COLOR_OR_TAIL_KEYS.includes(v.key) ? MASTERY_THRESHOLD_COLOR : MASTERY_THRESHOLD_FUNC);
     const def = PHENOTYPE_DEFS[v.key];
 
     let styleAttr = '';
@@ -2742,13 +2757,18 @@ function renderMonkeydex() {
 
     const tierLabel = v.tier ? `Tier ${v.tier}` : '';
     const masteredStar = entry.mastered ? ' ⭐' : '';
-    const countStr = `${entry.count}/${threshold}`;
+    const countStr = entry.mastered ? `${entry.count} ✓` : `${entry.count}/${threshold}`;
+    const pct = entry.mastered ? 100 : Math.min(100, (entry.count / threshold) * 100);
+    const progressBar = entry.discovered
+      ? `<div class="dex-mastery-bar"><div class="dex-mastery-fill${entry.mastered ? ' mastered' : ''}" style="width:${pct}%"></div></div>`
+      : '';
 
     return `<div class="dex-card ${entry.discovered ? '' : 'undiscovered'}">
       <div class="dex-emoji${bioGlowClass}"${styleAttr}>${entry.discovered ? '🦐' : '❓'}</div>
       <div class="dex-name">${entry.discovered ? v.name + masteredStar : '???'}</div>
       ${tierLabel ? `<div class="dex-rarity">${tierLabel}</div>` : ''}
       <div class="dex-count">${entry.discovered ? countStr : '?/?'}</div>
+      ${progressBar}
       <div class="dex-desc">${entry.discovered ? v.masteryDesc : 'Not yet discovered'}</div>
     </div>`;
   }
